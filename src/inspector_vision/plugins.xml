@@ -1,0 +1,7 @@
+<library path="locate_target_bt_node">
+  <class name="LocateTarget" 
+         type="inspector_bt_plugins::LocateTargetAction" 
+         base_class_type="nav2_behavior_tree::BtActionNode">
+    <description>Locates target for inspector bot</description>
+  </class>
+</library>

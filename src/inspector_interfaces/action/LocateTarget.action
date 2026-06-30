@@ -1,0 +1,9 @@
+# 1. Goal (What the Nav2 Orchestrator asks for)
+string target_id
+---
+# 2. Result (What the C++ Vision Node returns upon completion)
+bool success
+geometry_msgs/PoseStamped final_pose
+---
+# 3. Feedback (What the C++ Vision Node reports while computing)
+string status
