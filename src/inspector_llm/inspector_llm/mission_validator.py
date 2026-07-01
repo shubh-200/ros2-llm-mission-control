@@ -4,6 +4,9 @@ from PIL import Image  # pip install Pillow
 import os
 from nav_msgs.msg import OccupancyGrid
 import rclpy
+import json
+import os
+import jsonschema
 
 def load_map_metadata(map_yaml_path: str) -> dict:
     with open(map_yaml_path, 'r') as f:
@@ -122,3 +125,52 @@ def validate_waypoints(waypoints: list, map_meta: dict, costmap_validator: Costm
             )
 
     return waypoints  # all clear
+
+def validate_json_schema(raw_json: str) -> dict:
+    """
+    Parse and validate the raw JSON string from the LLM.
+    Applies defaults and resolves return_to_start.
+    Returns a fully resolved mission dict, or raises ValueError.
+    """
+
+    # --- Step 1: Parse JSON ---
+    try:
+        mission = json.loads(raw_json)
+    except json.JSONDecodeError as e:
+        raise ValueError(f'LLM returned invalid JSON: {e}')
+
+    # --- Step 2: Load schema ---
+    schema_path = os.path.join(os.path.dirname(__file__), 'schemas', 'mission_schema.json')
+    with open(schema_path, 'r') as f:
+        schema = json.load(f)
+
+    # --- Step 3: Validate structure against schema ---
+    try:
+        jsonschema.validate(instance=mission, schema=schema)
+    except jsonschema.ValidationError as e:
+        # e.path gives the JSON path to the bad field, e.message says what's wrong
+        field_path = ' -> '.join(str(p) for p in e.absolute_path) or 'root'
+        raise ValueError(f'Schema validation failed at [{field_path}]: {e.message}')
+
+    # --- Step 4: Apply defaults for optional top-level fields ---
+    mission.setdefault('frame_id',        'map')
+    mission.setdefault('loop_count',      1)
+    mission.setdefault('return_to_start', False)
+    mission.setdefault('max_speed',       0.3)
+    mission.setdefault('stop_on_failure', False)
+    mission.setdefault('description',     '')
+
+    # Apply per-waypoint defaults
+    for wp in mission['waypoints']:
+        wp.setdefault('yaw',   0.0)
+        wp.setdefault('label', '')
+        wp.setdefault('tasks', [])
+
+    # --- Step 5: Resolve return_to_start ---
+    # Append a copy of the first waypoint to close the loop
+    if mission['return_to_start'] and len(mission['waypoints']) > 1:
+        first = mission['waypoints'][0].copy()
+        first['label'] = first.get('label', '') + '_return'
+        mission['waypoints'].append(first)
+
+    return mission
