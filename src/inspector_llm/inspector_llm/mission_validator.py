@@ -174,3 +174,39 @@ def validate_json_schema(raw_json: str) -> dict:
         mission['waypoints'].append(first)
 
     return mission
+
+if __name__ == '__main__':
+    import sys
+
+    # Usage: python3 mission_validator.py missions/test_valid.json
+    json_file = sys.argv[1] if len(sys.argv) > 1 else 'missions/test_valid.json'
+
+    with open(json_file, 'r') as f:
+        raw = f.read()
+
+    print(f'Testing: {json_file}')
+
+    # Step 1: Schema validation (no ROS needed)
+    try:
+        mission = validate_json_schema(raw)
+        print(f'✅ Schema valid — {len(mission["waypoints"])} waypoints, '
+              f'{mission["loop_count"]} loop(s), return_to_start={mission["return_to_start"]}')
+    except ValueError as e:
+        print(f'❌ Schema FAILED: {e}')
+        sys.exit(1)
+
+    # Step 2: Map bounds check (no ROS needed)
+    MAP_YAML = '/home/shubham/omokai_ws/src/inspector_bot/maps/warehouse_map.yaml'
+    try:
+        meta = load_map_metadata(MAP_YAML)
+        for i, wp in enumerate(mission['waypoints']):
+            if not is_within_map_bounds(wp['x'], wp['y'], meta):
+                print(f'❌ Waypoint {i+1} ({wp["x"]}, {wp["y"]}) is out of bounds')
+                sys.exit(1)
+        print('✅ All waypoints within map bounds')
+    except Exception as e:
+        print(f'❌ Bounds check error: {e}')
+        sys.exit(1)
+
+    print('Skipping costmap check (requires live Nav2). Run via ros2 run for full validation.')
+
