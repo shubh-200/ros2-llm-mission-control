@@ -1,0 +1,15 @@
+{
+  "mission_name": "Warehouse perimeter patrol",
+  "description": "Two loops around the open area, return to start",
+  "loop_count": 2,
+  "return_to_start": true,
+  "max_speed": 0.3,
+  "stop_on_failure": false,
+  "waypoints": [
+    {"x":  2.0, "y":  1.0, "yaw":  1.57, "label": "north_east"},
+    {"x":  2.0, "y": -1.0, "yaw": -1.57, "label": "south_east",
+     "tasks": [{"action": "wait", "duration": 2.0}]},
+    {"x": -1.0, "y": -1.0, "yaw":  3.14, "label": "south_west"},
+    {"x": -1.0, "y":  1.0, "yaw":  0.0,  "label": "north_west"}
+  ]
+}
