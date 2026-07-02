@@ -44,7 +44,7 @@ __pycache__/
 *.swo
 *~
 .ccls-cache/
-
+.env
 .DS_Store
 .DS_Store?
 ._*
