@@ -140,7 +140,8 @@ def validate_json_schema(raw_json: str) -> dict:
         raise ValueError(f'LLM returned invalid JSON: {e}')
 
     # --- Step 2: Load schema ---
-    schema_path = os.path.join(os.path.dirname(__file__), 'schemas', 'mission_schema.json')
+    # schema_path = os.path.join(os.path.dirname(__file__), 'schemas', 'mission_schema.json')
+    schema_path = '/home/shubham/omokai_ws/src/inspector_llm/inspector_llm/schemas/mission_schema.json'
     with open(schema_path, 'r') as f:
         schema = json.load(f)
 
