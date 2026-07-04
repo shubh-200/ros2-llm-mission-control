@@ -154,6 +154,7 @@ def validate_json_schema(raw_json: str) -> dict:
         raise ValueError(f'Schema validation failed at [{field_path}]: {e.message}')
 
     # --- Step 4: Apply defaults for optional top-level fields ---
+    mission.setdefault('mission_name', 'unnamed_mission')
     mission.setdefault('frame_id',        'map')
     mission.setdefault('loop_count',      1)
     mission.setdefault('return_to_start', False)

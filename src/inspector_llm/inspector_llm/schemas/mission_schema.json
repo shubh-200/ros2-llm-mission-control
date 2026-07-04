@@ -3,7 +3,7 @@
   "title": "RobotMission",
   "description": "Validated mission plan emitted by LLM and executed by Nav2",
   "type": "object",
-  "required": ["mission_name", "waypoints"],
+  "required": ["waypoints"],
 
   "properties": {
 

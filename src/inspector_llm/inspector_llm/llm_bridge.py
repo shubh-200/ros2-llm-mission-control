@@ -4,7 +4,10 @@ import json
 from datetime import datetime
 from rclpy.action import ActionClient
 from nav2_msgs.action import NavigateToPose
+from pydantic import BaseModel, Field
+from typing import Optional, List
 from google import genai
+from google.genai import types
 from inspector_llm.mission_validator import validate_json_schema, validate_waypoints, load_map_metadata, CostmapValidator
 from inspector_llm.mission_executor import publish_initial_pose, navigate_to_waypoint
 
@@ -35,6 +38,24 @@ CONSTRAINTS:
 
 Output ONLY valid JSON. No markdown, no explanation, no code fences."""
 
+class WaypointTask(BaseModel):
+    action: str          # "wait" or "spin"
+    duration: Optional[float] = None
+    angle: Optional[float] = None
+class Waypoint(BaseModel):
+    x: float
+    y: float
+    yaw: Optional[float] = 0.0
+    label: Optional[str] = None
+    tasks: Optional[List[WaypointTask]] = None
+class MissionPlan(BaseModel):
+    mission_name: Optional[str] = None
+    description: Optional[str] = None
+    loop_count: Optional[int] = 1
+    return_to_start: Optional[bool] = False
+    max_speed: Optional[float] = 0.3
+    stop_on_failure: Optional[bool] = False
+    waypoints: List[Waypoint]
 
 def call_gemini(user_prompt: str) -> str:
     client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
@@ -42,10 +63,11 @@ def call_gemini(user_prompt: str) -> str:
     response = client.models.generate_content(
         model='gemini-2.5-flash',
         contents=user_prompt,
-        config={
-            'system_instruction': SYSTEM_PROMPT,
-            'response_mime_type': 'application/json',
-        },
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            response_mime_type='application/json',
+            response_schema=MissionPlan,   
+        ),
     )
     return response.text
 
@@ -61,6 +83,15 @@ def save_mission(mission: dict, missions_dir: str = 'missions'):
     return filepath
 
 def main():
+    # --- 4. Initialize ROS, seed AMCL, validate against costmap ---
+    rclpy.init()
+    node = rclpy.create_node('llm_bridge')
+    
+    costmap_validator = CostmapValidator(node)
+    
+    nav_client = ActionClient(node, NavigateToPose, '/navigate_to_pose')
+    publish_initial_pose(node)
+    
     # --- 1. Get prompt from user ---
     print('\n=== ROS2 LLM Mission Control ===')
     print('Enter a mission command (e.g., "Patrol the perimeter twice at 0.3 m/s"):\n')
@@ -79,14 +110,14 @@ def main():
     save_mission(mission)
     
     # --- 4. Initialize ROS, seed AMCL, validate against costmap ---
-    rclpy.init()
-    node = rclpy.create_node('llm_bridge')
+    # rclpy.init()
+    # node = rclpy.create_node('llm_bridge')
 
-    map_meta = load_map_metadata(MAP_YAML)
-    costmap_validator = CostmapValidator(node)
+    # map_meta = load_map_metadata(MAP_YAML)
+    # costmap_validator = CostmapValidator(node)
 
-    nav_client = ActionClient(node, NavigateToPose, '/navigate_to_pose')
-    publish_initial_pose(node)
+    # nav_client = ActionClient(node, NavigateToPose, '/navigate_to_pose')
+    # publish_initial_pose(node)
 
     node.get_logger().info('Waiting for Nav2...')
     nav_client.wait_for_server()
@@ -94,6 +125,7 @@ def main():
     node.get_logger().info('Waiting for costmap...')
     costmap_validator.wait_for_costmap(node)
 
+    map_meta = load_map_metadata(MAP_YAML)
     print('[VALIDATOR] Checking waypoints against costmap...')
     validate_waypoints(mission['waypoints'], map_meta, costmap_validator)
     print('[VALIDATOR] All waypoints safe.')
