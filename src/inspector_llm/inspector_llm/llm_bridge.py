@@ -42,19 +42,21 @@ class WaypointTask(BaseModel):
     action: str          # "wait" or "spin"
     duration: Optional[float] = None
     angle: Optional[float] = None
+    
 class Waypoint(BaseModel):
     x: float
     y: float
     yaw: Optional[float] = 0.0
     label: Optional[str] = None
     tasks: Optional[List[WaypointTask]] = None
+    
 class MissionPlan(BaseModel):
     mission_name: Optional[str] = None
     description: Optional[str] = None
-    loop_count: Optional[int] = 1
-    return_to_start: Optional[bool] = False
+    loop_count: int = 1
+    return_to_start: bool = False
     max_speed: Optional[float] = 0.3
-    stop_on_failure: Optional[bool] = False
+    stop_on_failure: bool = False
     waypoints: List[Waypoint]
 
 def call_gemini(user_prompt: str) -> str:
