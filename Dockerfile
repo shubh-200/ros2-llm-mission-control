@@ -8,6 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     python3-colcon-common-extensions \
     python3-rosdep \
+    python3-pip \
     libopencv-dev \
     libpcl-dev \
     ros-jazzy-navigation2 \
@@ -28,24 +29,29 @@ RUN apt-get update && apt-get install -y \
     ros-jazzy-joint-state-publisher \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Setup the Workspace
+# 2. Install Python dependencies for inspector_llm (LLM bridge)
+RUN python3 -m pip install --break-system-packages \
+    google-genai \
+    jsonschema
+
+# 3. Setup the Workspace
 WORKDIR /ros2_ws
 COPY ./src /ros2_ws/src
 
-# 3. Resolve ROS dependencies
+# 4. Resolve ROS dependencies
 # Initialize rosdep if not already done by the base image
 RUN rosdep init || true
 RUN rosdep update && rosdep install -y \
     --from-paths src \
     --ignore-src \
     --rosdistro jazzy \
-    --skip-keys "inspector_bot inspector_vision inspector_interfaces"
+    --skip-keys "inspector_bot inspector_vision inspector_interfaces inspector_llm"
 
-# 4. Build the Workspace (Ensuring the custom BT plugin and Lifecycle nodes compile)
+# 5. Build the Workspace (Ensuring the custom BT plugin and Lifecycle nodes compile)
 RUN /bin/bash -c "source /opt/ros/jazzy/setup.bash && \
     colcon build --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
 
-# 5. Setup the Entrypoint
+# 6. Setup the Entrypoint
 COPY ./entrypoint.sh /
 RUN chmod +x /entrypoint.sh
 

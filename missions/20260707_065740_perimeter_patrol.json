@@ -1,0 +1,46 @@
+{
+  "mission_name": "Perimeter Patrol",
+  "description": "Patrol the warehouse perimeter once.",
+  "loop_count": 1,
+  "return_to_start": true,
+  "max_speed": 0.5,
+  "stop_on_failure": false,
+  "waypoints": [
+    {
+      "x": 3.0,
+      "y": 2.0,
+      "label": "north_east",
+      "yaw": 0.0,
+      "tasks": []
+    },
+    {
+      "x": 3.0,
+      "y": -2.0,
+      "label": "south_east",
+      "yaw": 0.0,
+      "tasks": []
+    },
+    {
+      "x": -3.0,
+      "y": -2.0,
+      "label": "south_west",
+      "yaw": 0.0,
+      "tasks": []
+    },
+    {
+      "x": -3.0,
+      "y": 2.0,
+      "label": "north_west",
+      "yaw": 0.0,
+      "tasks": []
+    },
+    {
+      "x": 3.0,
+      "y": 2.0,
+      "label": "north_east_return",
+      "yaw": 0.0,
+      "tasks": []
+    }
+  ],
+  "frame_id": "map"
+}

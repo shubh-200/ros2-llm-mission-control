@@ -7,6 +7,7 @@ import rclpy
 import json
 import os
 import jsonschema
+from ament_index_python.packages import get_package_share_directory
 
 def load_map_metadata(map_yaml_path: str) -> dict:
     with open(map_yaml_path, 'r') as f:
@@ -141,7 +142,12 @@ def validate_json_schema(raw_json: str) -> dict:
 
     # --- Step 2: Load schema ---
     # schema_path = os.path.join(os.path.dirname(__file__), 'schemas', 'mission_schema.json')
-    schema_path = '/home/shubham/omokai_ws/src/inspector_llm/inspector_llm/schemas/mission_schema.json'
+    # schema_path = '/home/shubham/omokai_ws/src/inspector_llm/inspector_llm/schemas/mission_schema.json'
+    schema_path = os.path.join(
+        get_package_share_directory('inspector_llm'),
+        'schemas',
+        'mission_schema.json'
+    )
     with open(schema_path, 'r') as f:
         schema = json.load(f)
 

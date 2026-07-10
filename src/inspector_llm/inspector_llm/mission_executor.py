@@ -20,6 +20,10 @@ def publish_initial_pose(node):
         QoSProfile(reliability=QoSReliabilityPolicy.RELIABLE, depth=10)
     )
 
+    time.sleep(2.0)
+    for _ in range(20):
+        rclpy.spin_once(node, timeout_sec=0.1)
+    
     msg = PoseWithCovarianceStamped()
     msg.header.frame_id = 'map'
     msg.header.stamp = node.get_clock().now().to_msg()
@@ -42,6 +46,9 @@ def publish_initial_pose(node):
         time.sleep(0.3)
 
     node.get_logger().info('Initial pose published.')
+    
+    for _ in range(20):
+        rclpy.spin_once(node, timeout_sec=0.1)
 
 def navigate_to_waypoint(nav_client, node, x, y, yaw):
     # Build the goal

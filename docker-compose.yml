@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # Service 1: Simulation + Nav2 stack
   inspector_stack:
     build: .
     container_name: inspector_autonomy_container
@@ -19,3 +20,25 @@ services:
       - ./src:/ros2_ws/src:rw
     # Launch the entire orchestrator immediately upon boot
     command: ros2 launch inspector_bot master_bringup.launch.py
+
+  # Service 2: LLM bridge — interactive terminal for mission prompts
+  llm_bridge:
+    build: .
+    container_name: inspector_llm_container
+    network_mode: "host"
+    stdin_open: true   # keeps stdin open for input()
+    tty: true          # allocates a pseudo-TTY for the prompt
+    environment:
+      - DISPLAY=${DISPLAY}
+      - ROS_DOMAIN_ID=0
+      - GEMINI_API_KEY=${GEMINI_API_KEY}   # passed from host shell
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./src:/ros2_ws/src:rw
+      # Persist saved missions outside the container
+      - ./missions:/ros2_ws/missions:rw
+    depends_on:
+      - inspector_stack
+    command: ros2 run inspector_llm llm_bridge
