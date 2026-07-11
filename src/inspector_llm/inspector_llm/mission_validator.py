@@ -204,7 +204,11 @@ if __name__ == '__main__':
         sys.exit(1)
 
     # Step 2: Map bounds check (no ROS needed)
-    MAP_YAML = '/home/shubham/omokai_ws/src/inspector_bot/maps/warehouse_map.yaml'
+    MAP_YAML = os.path.join(
+    get_package_share_directory('inspector_bot'),
+    'maps',
+    'warehouse_map.yaml'
+    )
     try:
         meta = load_map_metadata(MAP_YAML)
         for i, wp in enumerate(mission['waypoints']):

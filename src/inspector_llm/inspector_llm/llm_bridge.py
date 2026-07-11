@@ -8,10 +8,15 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 from google import genai
 from google.genai import types
+from ament_index_python.packages import get_package_share_directory
 from inspector_llm.mission_validator import validate_json_schema, validate_waypoints, load_map_metadata, CostmapValidator
 from inspector_llm.mission_executor import publish_initial_pose, navigate_to_waypoint
 
-MAP_YAML = '/home/shubham/omokai_ws/install/inspector_bot/share/inspector_bot/maps/warehouse_map.yaml'
+MAP_YAML = os.path.join(
+    get_package_share_directory('inspector_bot'),
+    'maps',
+    'warehouse_map.yaml'
+)
 
 SYSTEM_PROMPT = """You are a mission planner for a ground robot in a warehouse.
 
