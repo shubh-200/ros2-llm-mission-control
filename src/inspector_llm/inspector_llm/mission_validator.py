@@ -160,28 +160,40 @@ def validate_json_schema(raw_json: str) -> dict:
         raise ValueError(f'Schema validation failed at [{field_path}]: {e.message}')
 
     # --- Step 4: Apply defaults for optional top-level fields ---
-    mission.setdefault('mission_name', 'unnamed_mission')
-    mission.setdefault('frame_id',        'map')
-    mission.setdefault('loop_count',      1)
-    mission.setdefault('return_to_start', False)
-    mission.setdefault('max_speed',       0.3)
-    mission.setdefault('stop_on_failure', False)
-    mission.setdefault('description',     '')
+    mission.setdefault('mode',             'mapped')
+    mission.setdefault('mission_name',     'unnamed_mission')
+    mission.setdefault('frame_id',         'map')
+    mission.setdefault('loop_count',       1)
+    mission.setdefault('return_to_start',  False)
+    mission.setdefault('max_speed',        0.3)
+    mission.setdefault('stop_on_failure',  False)
+    mission.setdefault('description',      '')
 
-    # Apply per-waypoint defaults
-    for wp in mission['waypoints']:
+    # Explore mode: apply explore_config defaults
+    if mission['mode'] == 'explore':
+        explore_config = mission.setdefault('explore_config', {})
+        explore_config.setdefault('explore_duration_sec', 120)
+        explore_config.setdefault('max_frontiers', 3)
+        explore_config.setdefault('save_map', True)
+        # Waypoints are optional in explore mode
+        mission.setdefault('waypoints', [])
+
+    # Apply per-waypoint defaults (only if waypoints exist)
+    for wp in mission.get('waypoints', []):
         wp.setdefault('yaw',   0.0)
         wp.setdefault('label', '')
         wp.setdefault('tasks', [])
 
     # --- Step 5: Resolve return_to_start ---
     # Append a copy of the first waypoint to close the loop
-    if mission['return_to_start'] and len(mission['waypoints']) > 1:
-        first = mission['waypoints'][0].copy()
+    waypoints = mission.get('waypoints', [])
+    if mission['return_to_start'] and len(waypoints) > 1:
+        first = waypoints[0].copy()
         first['label'] = first.get('label', '') + '_return'
         mission['waypoints'].append(first)
 
     return mission
+
 
 if __name__ == '__main__':
     import sys

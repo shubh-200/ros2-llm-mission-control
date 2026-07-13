@@ -13,7 +13,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/schemas', glob('inspector_llm/schemas/*.json')),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'numpy', 'scipy'],
     zip_safe=True,
     maintainer='shubham',
     maintainer_email='shubhambarge.dev@gmail.com',

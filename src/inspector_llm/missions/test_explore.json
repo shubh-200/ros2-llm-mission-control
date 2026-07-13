@@ -1,0 +1,11 @@
+{
+  "mode": "explore",
+  "mission_name": "warehouse_exploration",
+  "description": "Explore the unknown warehouse for 2 minutes using frontier-based exploration",
+  "max_speed": 0.3,
+  "explore_config": {
+    "explore_duration_sec": 120,
+    "max_frontiers": 3,
+    "save_map": true
+  }
+}
