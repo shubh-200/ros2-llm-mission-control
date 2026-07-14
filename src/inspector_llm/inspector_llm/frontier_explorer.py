@@ -19,9 +19,9 @@ CELL_FREE = 0
 CELL_OCCUPIED_THRESH = 50
 
 # --- Frontier filtering ---
-MIN_FRONTIER_SIZE = 8          # Ignore tiny frontier clusters (noise)
-MIN_DISTANCE_FROM_ROBOT = 0.5  # metres — don't target frontiers right under the robot
-MAX_DISTANCE_FROM_ROBOT = 15.0 # metres — don't target frontiers too far away
+MIN_FRONTIER_SIZE = 15         # Ignore tiny frontier clusters (noise)
+MIN_DISTANCE_FROM_ROBOT = 2.0  # metres — don't target frontiers right under the robot
+MAX_DISTANCE_FROM_ROBOT = 20.0 # metres — don't target frontiers too far away
 
 
 class FrontierExplorer:
@@ -56,8 +56,9 @@ class FrontierExplorer:
         """
         Find frontier waypoints in the current map.
 
-        Returns a list of (x, y) world coordinates, sorted by distance
-        from the robot (closest first), capped at max_count.
+        Returns a list of (x, y) world coordinates, sorted by exploration
+        value (largest frontiers preferred, with distance as tiebreaker),
+        capped at max_count.
         """
         if self._map_msg is None:
             return []
@@ -77,7 +78,8 @@ class FrontierExplorer:
         grid = np.array(msg.data, dtype=np.int8).reshape((height, width))
 
         # --- 2. Create masks ---
-        free_mask = (grid == CELL_FREE)
+        # Include cells with low cost (0-10) as navigable, not just exactly 0
+        free_mask = (grid >= CELL_FREE) & (grid <= 10)
         unknown_mask = (grid == CELL_UNKNOWN)
 
         # --- 3. Find frontier cells ---
@@ -132,9 +134,10 @@ class FrontierExplorer:
 
             waypoints.append((world_x, world_y, dist, cluster_size))
 
-        # --- 6. Sort by distance (closest first), then by size (larger preferred) ---
-        # Primary: closest. Tiebreaker: largest frontier.
-        waypoints.sort(key=lambda w: (w[2], -w[3]))
+        # --- 6. Sort by exploration value ---
+        # Primary: largest frontier (most unexplored area). Tiebreaker: closest.
+        # This pushes the robot toward big unexplored zones instead of nibbling edges.
+        waypoints.sort(key=lambda w: (-w[3], w[2]))
 
         # Return top N as (x, y) tuples
         result = [(w[0], w[1]) for w in waypoints[:max_count]]

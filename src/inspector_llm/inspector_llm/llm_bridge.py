@@ -153,6 +153,18 @@ def save_mission(mission: dict, missions_dir: str = 'missions'):
 # Exploration execution loop
 # ---------------------------------------------------------------------------
 
+def _get_robot_position(tf_buffer, node) -> tuple[float, float]:
+    """Get the robot's current (x, y) position in the map frame via TF."""
+    try:
+        transform = tf_buffer.lookup_transform('map', 'base_link', rclpy.time.Time())
+        x = transform.transform.translation.x
+        y = transform.transform.translation.y
+        return x, y
+    except Exception as e:
+        node.get_logger().warn(f'TF lookup failed, using (0,0): {e}')
+        return 0.0, 0.0
+
+
 def execute_exploration(nav_client, node, mission, frontier_explorer):
     """Explore until duration expires or no frontiers remain."""
     explore_config = mission.get('explore_config', {})
@@ -160,12 +172,23 @@ def execute_exploration(nav_client, node, mission, frontier_explorer):
     max_frontiers = explore_config.get('max_frontiers', 3)
     save_map_flag = explore_config.get('save_map', True)
 
+    # Set up TF listener for robot position tracking
+    from tf2_ros import Buffer, TransformListener
+    tf_buffer = Buffer()
+    tf_listener = TransformListener(tf_buffer, node)
+
     # Wait for the SLAM map to arrive
     print('[EXPLORER] Waiting for SLAM map...')
     frontier_explorer.wait_for_map(node)
 
+    # Give TF a moment to populate
+    time.sleep(2.0)
+    for _ in range(20):
+        rclpy.spin_once(node, timeout_sec=0.1)
+
     deadline = time.time() + duration
     cycle = 0
+    failed_frontiers = set()  # Track unreachable frontiers to avoid retrying
 
     print(f'[EXPLORER] Starting exploration for {duration}s (max {max_frontiers} frontiers/cycle)')
 
@@ -173,15 +196,23 @@ def execute_exploration(nav_client, node, mission, frontier_explorer):
         cycle += 1
         print(f'\n--- Exploration cycle {cycle} ---')
 
-        # Get current robot position (approximate — use odom if available)
-        # For now, use (0,0) as starting reference; frontier explorer sorts by distance
+        # Get current robot position from TF
+        robot_x, robot_y = _get_robot_position(tf_buffer, node)
+
         frontiers = frontier_explorer.get_frontiers(
-            robot_x=0.0, robot_y=0.0,
+            robot_x=robot_x, robot_y=robot_y,
             max_count=max_frontiers
         )
 
+        # Filter out previously failed frontiers (within 1m of a failed point)
+        frontiers = [
+            (fx, fy) for fx, fy in frontiers
+            if not any(abs(fx - bx) < 1.0 and abs(fy - by) < 1.0
+                       for bx, by in failed_frontiers)
+        ]
+
         if not frontiers:
-            print('[EXPLORER] No more frontiers — exploration complete.')
+            print('[EXPLORER] No more reachable frontiers — exploration complete.')
             break
 
         for fx, fy in frontiers:
@@ -193,6 +224,7 @@ def execute_exploration(nav_client, node, mission, frontier_explorer):
             success = navigate_to_waypoint(nav_client, node, fx, fy, yaw=0.0)
             if not success:
                 node.get_logger().warn(f'Frontier ({fx:.2f}, {fy:.2f}) unreachable, skipping.')
+                failed_frontiers.add((fx, fy))
                 continue
 
     print('\n[EXPLORER] Exploration finished.')
@@ -206,28 +238,26 @@ def execute_exploration(nav_client, node, mission, frontier_explorer):
 
 
 def _save_slam_map(node):
-    """Call slam_toolbox's serialize map or nav2 map_saver service."""
-    from nav2_msgs.srv import SaveMap
+    """Save the SLAM-generated map using the map_saver_cli tool."""
+    import subprocess
 
-    client = node.create_client(SaveMap, '/map_saver/save_map')
-    if not client.wait_for_service(timeout_sec=5.0):
-        node.get_logger().warn('map_saver service not available, skipping map save.')
-        return
+    map_name = 'explored_map'
+    node.get_logger().info(f'Saving map as {map_name}...')
 
-    request = SaveMap.Request()
-    request.map_url = 'explored_map'
-    request.image_format = 'pgm'
-    request.map_mode = 0  # TRINARY
-    request.free_thresh = 0.196
-    request.occupied_thresh = 0.65
-
-    future = client.call_async(request)
-    rclpy.spin_until_future_complete(node, future, timeout_sec=10.0)
-
-    if future.result() is not None and future.result().result:
-        print('[EXPLORER] Map saved as explored_map.pgm + explored_map.yaml')
-    else:
-        node.get_logger().warn('Map save returned unsuccessful result.')
+    try:
+        result = subprocess.run(
+            ['ros2', 'run', 'nav2_map_server', 'map_saver_cli',
+             '-f', map_name, '--ros-args', '-p', 'use_sim_time:=true'],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode == 0:
+            print(f'[EXPLORER] Map saved as {map_name}.pgm + {map_name}.yaml')
+        else:
+            node.get_logger().warn(f'map_saver_cli failed: {result.stderr}')
+    except subprocess.TimeoutExpired:
+        node.get_logger().warn('map_saver_cli timed out.')
+    except FileNotFoundError:
+        node.get_logger().warn('map_saver_cli not found. Is nav2_map_server installed?')
 
 # ---------------------------------------------------------------------------
 # Main
