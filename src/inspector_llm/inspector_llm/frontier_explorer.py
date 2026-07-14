@@ -19,8 +19,10 @@ CELL_FREE = 0
 CELL_OCCUPIED_THRESH = 50
 
 # --- Frontier filtering ---
-MIN_FRONTIER_SIZE = 5          # Min cells in a frontier cluster (lowered to catch early frontiers)
-MIN_DISTANCE_FROM_ROBOT = 1.0  # metres — skip frontiers right under the robot
+# These are BASE values — actual thresholds adapt based on map size.
+# Early SLAM maps are small and fragmented, so we relax filters to bootstrap.
+MIN_FRONTIER_SIZE_BASE = 5     # Min cells — reduced further for small maps
+MIN_DISTANCE_BASE = 1.5        # Min distance — reduced for small maps
 MAX_DISTANCE_FROM_ROBOT = 25.0 # metres — skip frontiers too far away
 
 
@@ -95,6 +97,24 @@ class FrontierExplorer:
             )
             return []
 
+        # --- Adaptive thresholds based on map maturity ---
+        # Early SLAM: tiny free area, fragmented frontiers → relax filters
+        # Mature SLAM: large free area, well-defined frontiers → tighten filters
+        if num_free < 2000:
+            # Bootstrap phase — accept anything
+            min_frontier_size = 1
+            min_distance = 0.3
+            self._node.get_logger().info(
+                f'Bootstrap mode (free={num_free}<2000): min_size=1, min_dist=0.3m')
+        elif num_free < 10000:
+            # Growing phase
+            min_frontier_size = 3
+            min_distance = 0.8
+        else:
+            # Mature map
+            min_frontier_size = MIN_FRONTIER_SIZE_BASE
+            min_distance = MIN_DISTANCE_BASE
+
         # --- 2. Create masks ---
         # Free: cells with occupancy probability 0-10 (navigable)
         free_mask = (grid >= CELL_FREE) & (grid <= 10)
@@ -128,7 +148,7 @@ class FrontierExplorer:
             cluster_size = int(np.sum(cluster_mask))
 
             # Skip tiny clusters (noise)
-            if cluster_size < MIN_FRONTIER_SIZE:
+            if cluster_size < min_frontier_size:
                 filtered_reasons['too_small'] += 1
                 continue
 
@@ -145,7 +165,7 @@ class FrontierExplorer:
             dist = np.sqrt((world_x - robot_x) ** 2 + (world_y - robot_y) ** 2)
 
             # Filter by distance
-            if dist < MIN_DISTANCE_FROM_ROBOT:
+            if dist < min_distance:
                 filtered_reasons['too_close'] += 1
                 continue
             if dist > MAX_DISTANCE_FROM_ROBOT:
