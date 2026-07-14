@@ -238,26 +238,27 @@ def execute_exploration(nav_client, node, mission, frontier_explorer):
 
 
 def _save_slam_map(node):
-    """Save the SLAM-generated map using the map_saver_cli tool."""
-    import subprocess
+    """Save the SLAM-generated map via slam_toolbox's SerializePoseGraph service."""
+    from slam_toolbox.srv import SerializePoseGraph
 
     map_name = 'explored_map'
-    node.get_logger().info(f'Saving map as {map_name}...')
+    node.get_logger().info(f'Serializing SLAM map as {map_name}...')
 
-    try:
-        result = subprocess.run(
-            ['ros2', 'run', 'nav2_map_server', 'map_saver_cli',
-             '-f', map_name, '--ros-args', '-p', 'use_sim_time:=true'],
-            capture_output=True, text=True, timeout=15
-        )
-        if result.returncode == 0:
-            print(f'[EXPLORER] Map saved as {map_name}.pgm + {map_name}.yaml')
-        else:
-            node.get_logger().warn(f'map_saver_cli failed: {result.stderr}')
-    except subprocess.TimeoutExpired:
-        node.get_logger().warn('map_saver_cli timed out.')
-    except FileNotFoundError:
-        node.get_logger().warn('map_saver_cli not found. Is nav2_map_server installed?')
+    client = node.create_client(SerializePoseGraph, '/slam_toolbox/serialize_map')
+    if not client.wait_for_service(timeout_sec=5.0):
+        node.get_logger().warn('slam_toolbox/serialize_map service not available.')
+        return
+
+    request = SerializePoseGraph.Request()
+    request.filename = map_name
+
+    future = client.call_async(request)
+    rclpy.spin_until_future_complete(node, future, timeout_sec=10.0)
+
+    if future.result() is not None:
+        print(f'[EXPLORER] Map serialized as {map_name}.posegraph + {map_name}.data')
+    else:
+        node.get_logger().warn('SerializePoseGraph returned no result.')
 
 # ---------------------------------------------------------------------------
 # Main
