@@ -127,6 +127,51 @@ def validate_waypoints(waypoints: list, map_meta: dict, costmap_validator: Costm
 
     return waypoints  # all clear
 
+def _apply_defaults(mission: dict):
+    """
+    Replace None (null) values with safe defaults.
+    Uses explicit 'is None' checks — setdefault() only fills MISSING keys, not null ones.
+    Must run BEFORE jsonschema.validate().
+    """
+    _defaults = {
+        'mode':            'mapped',
+        'mission_name':    'unnamed_mission',
+        'description':     '',
+        'frame_id':        'map',
+        'loop_count':      1,
+        'return_to_start': False,
+        'max_speed':       0.3,
+        'stop_on_failure': False,
+    }
+    for key, default in _defaults.items():
+        if mission.get(key) is None:
+            mission[key] = default
+
+    # Explore config defaults
+    if mission.get('mode') == 'explore':
+        ec = mission.get('explore_config')
+        if ec is None:
+            mission['explore_config'] = {}
+            ec = mission['explore_config']
+        ec_defaults = {
+            'explore_duration_sec': 120,
+            'max_frontiers': 3,
+            'save_map': True,
+        }
+        for key, default in ec_defaults.items():
+            if ec.get(key) is None:
+                ec[key] = default
+
+    # Per-waypoint defaults
+    for wp in mission.get('waypoints', []):
+        if wp.get('yaw') is None:
+            wp['yaw'] = 0.0
+        if wp.get('label') is None:
+            wp['label'] = ''
+        if wp.get('tasks') is None:
+            wp['tasks'] = []
+
+
 def validate_json_schema(raw_json: str) -> dict:
     """
     Parse and validate the raw JSON string from the LLM.
@@ -140,9 +185,13 @@ def validate_json_schema(raw_json: str) -> dict:
     except json.JSONDecodeError as e:
         raise ValueError(f'LLM returned invalid JSON: {e}')
 
-    # --- Step 2: Load schema ---
-    # schema_path = os.path.join(os.path.dirname(__file__), 'schemas', 'mission_schema.json')
-    # schema_path = '/home/shubham/omokai_ws/src/inspector_llm/inspector_llm/schemas/mission_schema.json'
+    # --- Step 2: Replace null values with safe defaults BEFORE schema validation ---
+    # The LLM (via Pydantic Optional fields) can output "field": null,
+    # which jsonschema rejects because the schema says type: "string"/etc.
+    # setdefault() only fills MISSING keys, not null ones — so we need explicit checks.
+    _apply_defaults(mission)
+
+    # --- Step 3: Load schema ---
     schema_path = os.path.join(
         get_package_share_directory('inspector_llm'),
         'schemas',
@@ -151,41 +200,19 @@ def validate_json_schema(raw_json: str) -> dict:
     with open(schema_path, 'r') as f:
         schema = json.load(f)
 
-    # --- Step 3: Validate structure against schema ---
+    # --- Step 4: Validate structure against schema ---
     try:
         jsonschema.validate(instance=mission, schema=schema)
     except jsonschema.ValidationError as e:
-        # e.path gives the JSON path to the bad field, e.message says what's wrong
         field_path = ' -> '.join(str(p) for p in e.absolute_path) or 'root'
         raise ValueError(f'Schema validation failed at [{field_path}]: {e.message}')
 
-    # --- Step 4: Apply defaults for optional top-level fields ---
-    mission.setdefault('mode',             'mapped')
-    mission.setdefault('mission_name',     'unnamed_mission')
-    mission.setdefault('frame_id',         'map')
-    mission.setdefault('loop_count',       1)
-    mission.setdefault('return_to_start',  False)
-    mission.setdefault('max_speed',        0.3)
-    mission.setdefault('stop_on_failure',  False)
-    mission.setdefault('description',      '')
-
-    # Explore mode: apply explore_config defaults
-    if mission['mode'] == 'explore':
-        explore_config = mission.setdefault('explore_config', {})
-        explore_config.setdefault('explore_duration_sec', 120)
-        explore_config.setdefault('max_frontiers', 3)
-        explore_config.setdefault('save_map', True)
-        # Waypoints are optional in explore mode
+    # --- Step 5: Post-validation processing ---
+    # Ensure explore mode has an empty waypoints list if none provided
+    if mission.get('mode') == 'explore':
         mission.setdefault('waypoints', [])
 
-    # Apply per-waypoint defaults (only if waypoints exist)
-    for wp in mission.get('waypoints', []):
-        wp.setdefault('yaw',   0.0)
-        wp.setdefault('label', '')
-        wp.setdefault('tasks', [])
-
-    # --- Step 5: Resolve return_to_start ---
-    # Append a copy of the first waypoint to close the loop
+    # Resolve return_to_start: append a copy of the first waypoint to close the loop
     waypoints = mission.get('waypoints', [])
     if mission['return_to_start'] and len(waypoints) > 1:
         first = waypoints[0].copy()
