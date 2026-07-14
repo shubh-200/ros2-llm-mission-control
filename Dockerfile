@@ -27,12 +27,15 @@ RUN apt-get update && apt-get install -y \
     ros-jazzy-xacro \
     ros-jazzy-robot-state-publisher \
     ros-jazzy-joint-state-publisher \
+    ros-jazzy-slam-toolbox \
     && rm -rf /var/lib/apt/lists/*
 
 # 2. Install Python dependencies for inspector_llm (LLM bridge)
 RUN python3 -m pip install --break-system-packages \
     google-genai \
-    jsonschema
+    jsonschema \
+    numpy \
+    scipy
 
 # 3. Setup the Workspace
 WORKDIR /ros2_ws

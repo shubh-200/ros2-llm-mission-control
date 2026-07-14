@@ -153,24 +153,34 @@ ros2-llm-mission-control/
 git clone https://github.com/shubh-200/ros2-llm-mission-control.git
 cd ros2-llm-mission-control
 
-# Build the Docker image (~10 min on first build)
+# Build the Docker image
 docker compose build
 ```
 
 ### Step 2: Launch the Simulation Stack
 
+Depending on whether you want to navigate a known map or explore an unknown warehouse:
+
+#### Option A: Mapped Mode (Static map + AMCL)
 ```bash
 # Allow container to render on host display
 xhost +local:docker
 
-# Set your Gemini API key
-export GEMINI_API_KEY="your-api-key-here"
-
-# Terminal 1 — Launch Gazebo + Nav2 + AMCL
+# Terminal 1 — Launch Gazebo + Nav2 + AMCL with pre-built map
 docker compose up inspector_stack
 ```
 
-Wait ~30 seconds until you see Nav2 reporting ready in the logs.
+#### Option B: Explore Mode (Online SLAM + Frontier Exploration)
+```bash
+# Allow container to render on host display
+xhost +local:docker
+
+# Terminal 1 — Override default command to launch SLAM Toolbox explore stack
+docker compose run --name inspector_autonomy_container --service-ports inspector_stack \
+  ros2 launch inspector_bot explore_bringup.launch.py
+```
+
+Wait ~30 seconds until you see Nav2/SLAM Toolbox reporting ready in the logs.
 
 ### Step 3: Run the LLM Bridge
 
@@ -178,25 +188,35 @@ Wait ~30 seconds until you see Nav2 reporting ready in the logs.
 # Terminal 2 — Exec into the running container
 docker exec -it inspector_autonomy_container bash
 
-# Inside the container (ROS is auto-sourced via .bashrc):
+# Inside the container, set your Gemini API key:
 export GEMINI_API_KEY="your-api-key-here"
-ros2 run inspector_llm llm_bridge
+
+# For Option A (Mapped Mode):
+ros2 run inspector_llm llm_bridge --mode mapped
+
+# For Option B (Explore Mode):
+ros2 run inspector_llm llm_bridge --mode explore
 ```
 
 ### Step 4: Issue a Mission Command
 
+#### If running in Mapped Mode:
 ```
-=== ROS2 LLM Mission Control ===
+=== ROS2 LLM Mission Control (mode: mapped) ===
 Enter a mission command (e.g., "Patrol the perimeter twice at 0.3 m/s"):
 
 > Patrol the warehouse perimeter once and return to start
 ```
+*The robot generates coordinates, validates them against the static costmap, and patrols.*
 
-The robot will:
-1. LLM generates a waypoint plan as JSON
-2. Validator checks schema + costmap safety
-3. Mission is saved to `missions/`
-4. Robot navigates each waypoint sequentially in Gazebo
+#### If running in Explore Mode:
+```
+=== ROS2 LLM Mission Control (mode: explore) ===
+Enter an exploration command (e.g., "Explore the warehouse for 3 minutes"):
+
+> Explore the warehouse for 3 minutes
+```
+*The robot queries the frontier explorer to autonomously discover unknown regions, updates the SLAM map dynamically, and serializes the final posegraph at the end.*
 
 ### Replay a Saved Mission (No LLM Needed)
 
