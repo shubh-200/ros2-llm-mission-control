@@ -19,9 +19,9 @@ CELL_FREE = 0
 CELL_OCCUPIED_THRESH = 50
 
 # --- Frontier filtering ---
-MIN_FRONTIER_SIZE = 15         # Ignore tiny frontier clusters (noise)
-MIN_DISTANCE_FROM_ROBOT = 2.0  # metres — don't target frontiers right under the robot
-MAX_DISTANCE_FROM_ROBOT = 20.0 # metres — don't target frontiers too far away
+MIN_FRONTIER_SIZE = 5          # Min cells in a frontier cluster (lowered to catch early frontiers)
+MIN_DISTANCE_FROM_ROBOT = 1.0  # metres — skip frontiers right under the robot
+MAX_DISTANCE_FROM_ROBOT = 25.0 # metres — skip frontiers too far away
 
 
 class FrontierExplorer:
@@ -63,8 +63,9 @@ class FrontierExplorer:
         if self._map_msg is None:
             return []
 
-        # Spin once to get latest map
-        rclpy.spin_once(self._node, timeout_sec=0.05)
+        # Spin a few times to get the latest map update
+        for _ in range(5):
+            rclpy.spin_once(self._node, timeout_sec=0.05)
 
         msg = self._map_msg
         info = msg.info
@@ -77,34 +78,58 @@ class FrontierExplorer:
         # --- 1. Reshape to 2D grid ---
         grid = np.array(msg.data, dtype=np.int8).reshape((height, width))
 
+        # --- DEBUG: Log map composition ---
+        total_cells = width * height
+        num_unknown = int(np.sum(grid == CELL_UNKNOWN))
+        num_free = int(np.sum((grid >= 0) & (grid <= 10)))
+        num_occupied = int(np.sum(grid > CELL_OCCUPIED_THRESH))
+        self._node.get_logger().info(
+            f'Map: {width}x{height} ({total_cells} cells) — '
+            f'free={num_free}, unknown={num_unknown}, occupied={num_occupied}'
+        )
+
+        if num_unknown == 0:
+            self._node.get_logger().warn(
+                'Map has ZERO unknown cells — SLAM may not be publishing unknown regions. '
+                'Check that slam_toolbox is running in mapping mode.'
+            )
+            return []
+
         # --- 2. Create masks ---
-        # Include cells with low cost (0-10) as navigable, not just exactly 0
+        # Free: cells with occupancy probability 0-10 (navigable)
         free_mask = (grid >= CELL_FREE) & (grid <= 10)
+        # Unknown: cells with value -1
         unknown_mask = (grid == CELL_UNKNOWN)
 
         # --- 3. Find frontier cells ---
         # A frontier cell is a FREE cell that has at least one UNKNOWN neighbor.
-        # Dilate the unknown mask by 1 pixel (4-connectivity) and AND with free.
-        struct = ndimage.generate_binary_structure(2, 1)  # 4-connected
-        unknown_dilated = ndimage.binary_dilation(unknown_mask, structure=struct)
+        # Use 8-connectivity to catch diagonal frontiers too.
+        struct_8conn = ndimage.generate_binary_structure(2, 2)  # 8-connected
+        unknown_dilated = ndimage.binary_dilation(unknown_mask, structure=struct_8conn)
         frontier_mask = free_mask & unknown_dilated
 
-        # --- 4. Cluster frontiers ---
-        labeled, num_features = ndimage.label(frontier_mask, structure=struct)
+        num_frontier_cells = int(np.sum(frontier_mask))
+        self._node.get_logger().info(f'Raw frontier cells: {num_frontier_cells}')
 
-        if num_features == 0:
-            self._node.get_logger().info('No frontiers found — map may be fully explored.')
+        if num_frontier_cells == 0:
+            self._node.get_logger().info('No frontier cells found.')
             return []
+
+        # --- 4. Cluster frontiers ---
+        labeled, num_features = ndimage.label(frontier_mask, structure=struct_8conn)
+        self._node.get_logger().info(f'Frontier clusters: {num_features}')
 
         # --- 5. Compute centroids and filter ---
         waypoints = []
+        filtered_reasons = {'too_small': 0, 'too_close': 0, 'too_far': 0, 'occupied': 0}
 
         for label_id in range(1, num_features + 1):
             cluster_mask = (labeled == label_id)
-            cluster_size = np.sum(cluster_mask)
+            cluster_size = int(np.sum(cluster_mask))
 
             # Skip tiny clusters (noise)
             if cluster_size < MIN_FRONTIER_SIZE:
+                filtered_reasons['too_small'] += 1
                 continue
 
             # Centroid in grid coordinates (row, col)
@@ -121,29 +146,37 @@ class FrontierExplorer:
 
             # Filter by distance
             if dist < MIN_DISTANCE_FROM_ROBOT:
+                filtered_reasons['too_close'] += 1
                 continue
             if dist > MAX_DISTANCE_FROM_ROBOT:
+                filtered_reasons['too_far'] += 1
                 continue
 
-            # Check that the centroid itself is not occupied
+            # Check that the centroid itself is not in an occupied cell
             c_row = int(centroid_row)
             c_col = int(centroid_col)
             if 0 <= c_row < height and 0 <= c_col < width:
                 if grid[c_row, c_col] > CELL_OCCUPIED_THRESH:
+                    filtered_reasons['occupied'] += 1
                     continue
 
             waypoints.append((world_x, world_y, dist, cluster_size))
 
+        # --- DEBUG: Log filtering breakdown ---
+        self._node.get_logger().info(
+            f'Clusters: {num_features} total, {len(waypoints)} passed filters. '
+            f'Filtered out: {filtered_reasons}'
+        )
+
         # --- 6. Sort by exploration value ---
         # Primary: largest frontier (most unexplored area). Tiebreaker: closest.
-        # This pushes the robot toward big unexplored zones instead of nibbling edges.
         waypoints.sort(key=lambda w: (-w[3], w[2]))
 
         # Return top N as (x, y) tuples
         result = [(w[0], w[1]) for w in waypoints[:max_count]]
 
         self._node.get_logger().info(
-            f'Found {len(waypoints)} frontiers, returning top {len(result)}: '
+            f'Returning {len(result)} frontiers: '
             f'{[(f"{x:.2f}", f"{y:.2f}") for x, y in result]}'
         )
 
