@@ -71,6 +71,32 @@ CONSTRAINTS:
 You MUST set "mode" to "explore" in your output.
 Output ONLY valid JSON. No markdown, no explanation, no code fences."""
 
+SYSTEM_PROMPT_VISION = """You are a mission planner for a ground robot with a camera in a warehouse.
+
+The robot can detect and follow colored objects using its front-facing RGB-D camera.
+Your job is to interpret the operator's request and emit a vision mission plan.
+
+AVAILABLE TARGETS (these are the objects the robot can detect by color):
+  red_target   — A bright red box moving through the warehouse
+  cargo_box    — A brown/tan cargo box with an AprilTag
+  blue_barrel  — A blue barrel
+
+AVAILABLE ACTIONS:
+  detect  — Find the target and report its 3D position (one-shot)
+  follow  — Find the target and pursue it, maintaining distance
+
+VISION CONFIG OPTIONS:
+  target: Which object to detect (one of the available targets above)
+  action: "detect" or "follow"
+  timeout_sec: How long to run the vision task (5-300 seconds, default 60)
+  return_to_start: Whether to navigate back to the starting position after the task (default true)
+
+CONSTRAINTS:
+  Max speed: 0.5 m/s
+
+You MUST set "mode" to "vision" in your output.
+Output ONLY valid JSON. No markdown, no explanation, no code fences."""
+
 # ---------------------------------------------------------------------------
 # Pydantic models for Gemini structured output
 # ---------------------------------------------------------------------------
@@ -109,6 +135,19 @@ class MissionPlanExplore(BaseModel):
     max_speed: Optional[float] = 0.3
     explore_config: Optional[ExploreConfig] = None
 
+class VisionConfig(BaseModel):
+    target: Optional[str] = 'red_target'
+    action: Optional[str] = 'follow'
+    timeout_sec: Optional[float] = 60.0
+    return_to_start: bool = True
+
+class MissionPlanVision(BaseModel):
+    mode: str = "vision"
+    mission_name: Optional[str] = None
+    description: Optional[str] = None
+    max_speed: Optional[float] = 0.3
+    vision_config: Optional[VisionConfig] = None
+
 # ---------------------------------------------------------------------------
 # LLM call
 # ---------------------------------------------------------------------------
@@ -119,6 +158,9 @@ def call_gemini(user_prompt: str, mode: str) -> str:
     if mode == 'explore':
         system_prompt = SYSTEM_PROMPT_EXPLORE
         schema = MissionPlanExplore
+    elif mode == 'vision':
+        system_prompt = SYSTEM_PROMPT_VISION
+        schema = MissionPlanVision
     else:
         system_prompt = SYSTEM_PROMPT_MAPPED
         schema = MissionPlanMapped
@@ -261,13 +303,96 @@ def _save_slam_map(node):
         node.get_logger().warn('SerializePoseGraph returned no result.')
 
 # ---------------------------------------------------------------------------
+# Vision mission execution
+# ---------------------------------------------------------------------------
+
+def execute_vision_mission(node, mission: dict):
+    """
+    Execute a vision detection/follow mission.
+
+    Launches the vision_detector and visual_follower nodes as subprocesses,
+    monitors the follower's status, and shuts down when done.
+    """
+    import subprocess
+    import signal
+
+    vc = mission.get('vision_config', {})
+    target = vc.get('target', 'red_target')
+    action = vc.get('action', 'follow')
+    timeout = vc.get('timeout_sec', 60)
+    return_flag = vc.get('return_to_start', True)
+
+    print(f'\n[VISION] Starting vision mission:')
+    print(f'  Target:  {target}')
+    print(f'  Action:  {action}')
+    print(f'  Timeout: {timeout}s')
+    print(f'  Return:  {return_flag}\n')
+
+    processes = []
+
+    try:
+        # Launch vision detector node
+        print('[VISION] Launching vision_detector node...')
+        detector_cmd = [
+            'ros2', 'run', 'inspector_llm', 'vision_detector',
+            '--ros-args',
+            '-p', f'target_name:={target}',
+            '-p', 'use_sim_time:=true',
+        ]
+        detector_proc = subprocess.Popen(detector_cmd)
+        processes.append(('vision_detector', detector_proc))
+
+        if action == 'follow':
+            # Launch visual follower node
+            print('[VISION] Launching visual_follower node...')
+            follower_cmd = [
+                'ros2', 'run', 'inspector_llm', 'visual_follower',
+                '--ros-args',
+                '-p', f'follow_timeout:={float(timeout)}',
+                '-p', f'return_to_start:={str(return_flag).lower()}',
+                '-p', 'use_sim_time:=true',
+            ]
+            follower_proc = subprocess.Popen(follower_cmd)
+            processes.append(('visual_follower', follower_proc))
+
+            # Wait for follower to finish (it exits after timeout/target-lost + return)
+            print(f'[VISION] Following target for up to {timeout}s...')
+            try:
+                follower_proc.wait(timeout=timeout + 120)  # extra 120s for return-to-start
+                print('[VISION] Follower node exited.')
+            except subprocess.TimeoutExpired:
+                print('[VISION] Follower timed out. Terminating.')
+        else:
+            # Detect-only: just wait for timeout
+            print(f'[VISION] Detecting target for {timeout}s...')
+            print('[VISION] Watch /detected_target and /detection_image in RViz.')
+            time.sleep(timeout)
+            print('[VISION] Detection timeout reached.')
+
+    except KeyboardInterrupt:
+        print('\n[VISION] Interrupted by user.')
+
+    finally:
+        # Cleanup: terminate all launched processes
+        for name, proc in processes:
+            if proc.poll() is None:
+                print(f'[VISION] Terminating {name}...')
+                proc.send_signal(signal.SIGINT)
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+
+    print('[VISION] Vision mission complete.')
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description='ROS2 LLM Mission Control')
-    parser.add_argument('--mode', choices=['mapped', 'explore'], default='mapped',
-                        help='Mission mode: mapped (pre-built map) or explore (SLAM + frontiers)')
+    parser.add_argument('--mode', choices=['mapped', 'explore', 'vision'], default='mapped',
+                        help='Mission mode: mapped | explore | vision')
     parser.add_argument('--file', type=str, default=None,
                         help='Replay a saved mission JSON file instead of calling the LLM')
     args = parser.parse_args()
@@ -283,7 +408,8 @@ def main():
 
     # In mapped mode, seed AMCL with initial pose.
     # In explore mode, SLAM Toolbox handles localization — no initialpose needed.
-    if mode == 'mapped':
+    # In vision mode, we use the static map (AMCL) for return-to-start.
+    if mode in ('mapped', 'vision'):
         publish_initial_pose(node)
 
     # --- 2. Get prompt or load file ---
@@ -295,6 +421,8 @@ def main():
         print(f'\n=== ROS2 LLM Mission Control (mode: {mode}) ===')
         if mode == 'explore':
             print('Enter an exploration command (e.g., "Explore the warehouse for 3 minutes"):\n')
+        elif mode == 'vision':
+            print('Enter a vision command (e.g., "Find the red box and follow it"):\n')
         else:
             print('Enter a mission command (e.g., "Patrol the perimeter twice at 0.3 m/s"):\n')
         user_prompt = input('> ')
@@ -324,6 +452,10 @@ def main():
         # Explore mode: use frontier explorer
         frontier_explorer = FrontierExplorer(node)
         execute_exploration(nav_client, node, mission, frontier_explorer)
+
+    elif mode == 'vision':
+        # Vision mode: launch detector + follower nodes
+        execute_vision_mission(node, mission)
 
     else:
         # Mapped mode: validate waypoints against costmap, then execute

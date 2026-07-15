@@ -162,6 +162,22 @@ def _apply_defaults(mission: dict):
             if ec.get(key) is None:
                 ec[key] = default
 
+    # Vision config defaults
+    if mission.get('mode') == 'vision':
+        vc = mission.get('vision_config')
+        if vc is None:
+            mission['vision_config'] = {}
+            vc = mission['vision_config']
+        vc_defaults = {
+            'target': 'red_target',
+            'action': 'follow',
+            'timeout_sec': 60,
+            'return_to_start': True,
+        }
+        for key, default in vc_defaults.items():
+            if vc.get(key) is None:
+                vc[key] = default
+
     # Per-waypoint defaults
     for wp in mission.get('waypoints', []):
         if wp.get('yaw') is None:
@@ -208,8 +224,8 @@ def validate_json_schema(raw_json: str) -> dict:
         raise ValueError(f'Schema validation failed at [{field_path}]: {e.message}')
 
     # --- Step 5: Post-validation processing ---
-    # Ensure explore mode has an empty waypoints list if none provided
-    if mission.get('mode') == 'explore':
+    # Ensure explore/vision modes have an empty waypoints list if none provided
+    if mission.get('mode') in ('explore', 'vision'):
         mission.setdefault('waypoints', [])
 
     # Resolve return_to_start: append a copy of the first waypoint to close the loop

@@ -13,7 +13,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/schemas', glob('inspector_llm/schemas/*.json')),
     ],
-    install_requires=['setuptools', 'numpy', 'scipy'],
+    install_requires=['setuptools', 'numpy', 'scipy', 'opencv-python-headless'],
     zip_safe=True,
     maintainer='shubham',
     maintainer_email='shubhambarge.dev@gmail.com',
@@ -28,6 +28,8 @@ setup(
         'console_scripts': [
             'mission_executor = inspector_llm.mission_executor:main',
             'llm_bridge = inspector_llm.llm_bridge:main',
+            'vision_detector = inspector_llm.vision_detector:main',
+            'visual_follower = inspector_llm.visual_follower:main',
         ],
     },
 )
