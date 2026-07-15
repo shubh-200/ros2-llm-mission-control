@@ -102,25 +102,36 @@ ros2-llm-mission-control/
 │   ├── inspector_bot/                  # Robot platform (URDF, Nav2, maps, Gazebo)
 │   │   ├── urdf/                       #   Parametric robot model
 │   │   ├── config/                     #   Nav2 params, controllers, behavior tree
-│   │   ├── launch/                     #   master_bringup.launch.py (single-command)
+│   │   ├── launch/                     #   Bringup files
+│   │   │   ├── master_bringup.launch.py   # Option A: Static map + AMCL bringup
+│   │   │   ├── explore_bringup.launch.py  # Option B: SLAM Toolbox bringup
+│   │   │   └── vision_bringup.launch.py   # Option C: Vision targets bringup
 │   │   ├── maps/                       #   SLAM-generated warehouse occupancy grid
-│   │   └── worlds/                     #   Gazebo SDF world files
+│   │   └── models/                     #   SDF models
+│   │       ├── cargo_box/              #   AprilTag target box
+│   │       └── red_target/             #   Self-propelled red target box (diff-drive)
 │   │
 │   ├── inspector_interfaces/           # Custom ROS 2 action definitions
 │   │
-│   ├── inspector_vision/               # Vision microservice (not used by LLM layer)
+│   ├── inspector_vision/               # Legacy C++ vision nodes (retained)
 │   │
 │   └── inspector_llm/                  # ★ LLM mission planning package
 │       ├── inspector_llm/
 │       │   ├── llm_bridge.py           #   Main entry: prompt → LLM → validate → execute
 │       │   ├── mission_validator.py    #   JSON schema + map bounds + costmap checks
 │       │   ├── mission_executor.py     #   Nav2 action client, initialpose, waypoint nav
+│       │   ├── frontier_explorer.py    #   Frontier detector & clusterer for SLAM exploration
+│       │   ├── vision_detector.py      #   HSV color segmenter + point cloud depth finder
+│       │   ├── visual_follower.py      #   Proportional visual follow controller
+│       │   ├── target_mover.py         #   Simple circle velocity driver for the red target
 │       │   └── schemas/
 │       │       └── mission_schema.json #   JSON Schema Draft-07 for mission plans
 │       ├── missions/                   #   Test mission files (valid + bad examples)
 │       │   ├── test_valid.json
 │       │   ├── test_bad_coords.json
-│       │   └── test_bad_schema.json
+│       │   ├── test_bad_schema.json
+│       │   ├── test_explore.json       #   Test exploration mission config
+│       │   └── test_vision.json        #   Test vision target follow config
 │       ├── package.xml
 │       ├── setup.py
 │       └── setup.cfg
@@ -180,7 +191,17 @@ docker compose run --name inspector_autonomy_container --service-ports inspector
   ros2 launch inspector_bot explore_bringup.launch.py
 ```
 
-Wait ~30 seconds until you see Nav2/SLAM Toolbox reporting ready in the logs.
+#### Option C: Vision Mode (RGB-D Target Detection + Follow)
+```bash
+# Allow container to render on host display
+xhost +local:docker
+
+# Terminal 1 — Override default command to launch Vision bringup stack and moving target
+docker compose run --name inspector_autonomy_container --service-ports inspector_stack \
+  ros2 launch inspector_bot vision_bringup.launch.py
+```
+
+Wait ~30 seconds until you see Nav2/SLAM/Gazebo reporting ready in the logs.
 
 ### Step 3: Run the LLM Bridge
 
@@ -196,6 +217,9 @@ ros2 run inspector_llm llm_bridge --mode mapped
 
 # For Option B (Explore Mode):
 ros2 run inspector_llm llm_bridge --mode explore
+
+# For Option C (Vision Mode):
+ros2 run inspector_llm llm_bridge --mode vision
 ```
 
 ### Step 4: Issue a Mission Command
@@ -217,6 +241,19 @@ Enter an exploration command (e.g., "Explore the warehouse for 3 minutes"):
 > Explore the warehouse for 3 minutes
 ```
 *The robot queries the frontier explorer to autonomously discover unknown regions, updates the SLAM map dynamically, and serializes the final posegraph at the end.*
+
+#### If running in Vision Mode:
+```
+=== ROS2 LLM Mission Control (mode: vision) ===
+Enter a vision command (e.g., "Find the red box and follow it"):
+
+> Find the red box and follow it
+```
+*The robot launches standalone detector/follower nodes to segment the moving red target, track it relative to base_link via organized point cloud depth lookup, and return to start upon timeout.*
+
+> [!NOTE]
+> If you have local DNS or internet connection issues in the container, you can bypass the Gemini API call and execute/replay the vision tracking task offline:
+> `ros2 run inspector_llm llm_bridge --mode vision --file src/inspector_llm/missions/test_vision.json`
 
 ### Replay a Saved Mission (No LLM Needed)
 
@@ -324,9 +361,9 @@ The full pipeline works end-to-end:
 
 ### Senior Challenge Overviews
 
-> The following are overviews of my approach to each challenge, as required by the assignment.
+> The following are overviews of the implementation details for the completed senior challenges.
 
-#### 1. Multi-Agent Formations
+#### 1. Multi-Agent Formations (Conceptual)
 
 **Approach**: Extend the system prompt and JSON schema to include a `squad` field with per-agent waypoint assignments. The LLM would emit squad-level intent (e.g., `"formation": "wedge"`, `"task": "area_sweep"`) and a coordination layer would:
 - Decompose the formation into per-agent offset waypoints
@@ -336,26 +373,23 @@ The full pipeline works end-to-end:
 
 **Technical choices**: Gazebo multi-robot namespacing (`/robot1/`, `/robot2/`), each with its own Nav2 stack. A central `squad_coordinator` node would consume the validated squad JSON and dispatch per-agent missions.
 
-#### 2. SLAM / Autonomous Navigation
+#### 2. SLAM / Autonomous Navigation — ✅ Complete
 
-**Approach**: The base platform already has SLAM Toolbox integrated. To extend this:
-- Replace the static map with online SLAM (`slam_toolbox` in `mapping` mode)
-- Use frontier-based exploration to autonomously navigate unmapped areas
-- The LLM would emit high-level goals (e.g., `"explore_area": {"bounds": [...]}`) and the executor would interface with an exploration planner
-- Waypoint validation would switch from static map bounds to the live SLAM-generated costmap only
+**Implementation**: Replaced static localization and pre-built map checks with active online mapping and exploration:
+- **Online SLAM**: Uses `slam_toolbox` in `online_async` mode to construct the warehouse map on-the-fly.
+- **Adaptive Frontier Explorer**: A custom Python component (`frontier_explorer.py`) segments boundaries between free and unknown space using 8-connectivity binary dilation and SciPy connected-components clustering.
+- **Clustering Thresholds**: Bootstraps frontier constraints dynamically (min size of 1 cell, min distance of 0.3m for small maps) and scales to mature thresholds as the map grows to ensure continuous coverage.
+- **Serialization**: Upon mission completion, calls the `/slam_toolbox/serialize_map` service to save the explored region as `.posegraph` and `.data` files.
 
-**What exists today**: The warehouse map was originally generated using SLAM Toolbox. AMCL localization against the static map is fully operational.
+#### 3. Vision AI Target Detection + Follow — ✅ Complete
 
-#### 3. Vision AI Target Detection + Follow
-
-**Approach**: The base platform includes a lifecycle-managed vision microservice (`inspector_vision`) with RGB-D sensor fusion:
-- Extend target detection from AprilTag-only to YOLOv8 for arbitrary object classes
-- User specifies target class in the prompt (e.g., `"Follow the red forklift"`)
-- LLM emits a `vision_task` field: `{"detect": "forklift", "action": "follow"}`
-- On detection, the system: (a) publishes the camera frame to an operator topic, (b) enters a pursuit behavior that tracks the target's TF frame using a PID controller on `/cmd_vel`
-- Target class would be configurable via the LLM prompt, validated against a known class list in the schema
-
-**What exists today**: The vision node already does AprilTag detection, 2D→3D projection via organized point cloud, and TF2 broadcasting. The Nav2 Behavior Tree integration (`LocateTarget` action) is wired.
+**Implementation**: Integrated an RGB-D perception pipeline that tracks a moving target in the warehouse:
+- **Self-Propelled Target**: Spawns a moving `red_target` box using invisible wheels and a standard Gazebo DiffDrive plugin controlled by a velocity publisher (`target_mover.py`).
+- **Vision Detector**: Segment targets in real-time (`vision_detector.py`) using HSV color filters. Computes 3D coordinates by querying the organized point cloud (`/camera/points`) at the center of the target bounding box.
+- **TF Pursuit**: Broadcasts the `camera_link` $\rightarrow$ `detected_target` transform.
+- **Visual Follower**: Implements a Proportional (P) controller (`visual_follower.py`) that commands `/cmd_vel` to keep the robot oriented toward the target at a safe $\approx 1.5$m distance.
+- **Return to Start**: Saves the initial position at startup. If the target is lost for $>5.0$ seconds or the mission times out, it uses Nav2 (`NavigateToPose`) to plan a path back home.
+- **VLM/YOLO Extensibility**: Detector code includes inline guides showing how to drop in YOLOv8 or Gemini Vision APIs.
 
 ---
 
