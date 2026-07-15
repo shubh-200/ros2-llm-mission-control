@@ -85,9 +85,26 @@ def generate_launch_description():
         output='screen'
     )
 
-    # --- 6. Orchestration ---
+    # --- 6. Target Bridge and Mover (for red target movement) ---
+    target_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        arguments=[
+            '/red_target/cmd_vel@geometry_msgs/msg/Twist]gz.msgs.Twist'
+        ],
+        output='screen'
+    )
+
+    target_mover_node = Node(
+        package='inspector_llm',
+        executable='target_mover',
+        parameters=[{'use_sim_time': True}],
+        output='screen'
+    )
+
+    # --- 7. Orchestration ---
     # Delay spawning the target and loading Nav2 to give Gazebo time to boot.
-    # Spawning the target after 8 seconds, and Nav2 after 15 seconds.
+    # Spawning the target after 8 seconds, and Nav2 / mover after 15 seconds.
     delayed_target_spawn = TimerAction(
         period=8.0,
         actions=[spawn_red_target],
@@ -95,11 +112,12 @@ def generate_launch_description():
 
     delayed_navigation = TimerAction(
         period=15.0,
-        actions=[nav2_launch, twist_stamper_node, rviz_node],
+        actions=[nav2_launch, twist_stamper_node, rviz_node, target_mover_node],
     )
 
     return LaunchDescription([
         gazebo_launch,
+        target_bridge,
         delayed_target_spawn,
         delayed_navigation,
     ])

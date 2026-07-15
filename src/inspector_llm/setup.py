@@ -30,6 +30,7 @@ setup(
             'llm_bridge = inspector_llm.llm_bridge:main',
             'vision_detector = inspector_llm.vision_detector:main',
             'visual_follower = inspector_llm.visual_follower:main',
+            'target_mover = inspector_llm.target_mover:main',
         ],
     },
 )

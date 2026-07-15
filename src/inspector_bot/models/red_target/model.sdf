@@ -2,10 +2,9 @@
 <sdf version="1.8">
   <model name="red_target">
     <static>false</static>
+    <pose>0 0 0.2 0 0 0</pose>
 
-    <link name="body">
-      <pose>0 0 0.2 0 0 0</pose>
-
+    <link name="base_link">
       <inertial>
         <mass>2.0</mass>
         <inertia>
@@ -28,22 +27,81 @@
       </visual>
     </link>
 
-    <!-- TrajectoryFollower: makes the box patrol a rectangular loop -->
-    <plugin filename="gz-sim-trajectory-follower-system"
-            name="gz::sim::systems::TrajectoryFollower">
-      <link_name>body</link_name>
-      <loop>true</loop>
-      <force>10.0</force>
-      <torque>5.0</torque>
-      <range_tolerance>0.5</range_tolerance>
-      <line_velocity>0.3</line_velocity>
-      <waypoints>
-        <waypoint>2 1 0.2</waypoint>
-        <waypoint>2 -1 0.2</waypoint>
-        <waypoint>0 -1 0.2</waypoint>
-        <waypoint>0 1 0.2</waypoint>
-      </waypoints>
-    </plugin>
+    <!-- Invisible wheels to drive the box -->
+    <link name="left_wheel">
+      <pose>0 0.2 -0.1 -1.5707 0 0</pose>
+      <inertial>
+        <mass>0.5</mass>
+        <inertia>
+          <ixx>0.001</ixx><iyy>0.001</iyy><izz>0.001</izz>
+        </inertia>
+      </inertial>
+      <collision name="collision">
+        <geometry><sphere><radius>0.1</radius></sphere></geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+    </link>
 
+    <link name="right_wheel">
+      <pose>0 -0.2 -0.1 -1.5707 0 0</pose>
+      <inertial>
+        <mass>0.5</mass>
+        <inertia>
+          <ixx>0.001</ixx><iyy>0.001</iyy><izz>0.001</izz>
+        </inertia>
+      </inertial>
+      <collision name="collision">
+        <geometry><sphere><radius>0.1</radius></sphere></geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>1.0</mu>
+              <mu2>1.0</mu2>
+            </ode>
+          </friction>
+        </surface>
+      </collision>
+    </link>
+
+    <!-- Revolute joints for wheels -->
+    <joint name="left_wheel_joint" type="revolute">
+      <parent>base_link</parent>
+      <child>left_wheel</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-1.79769e+308</lower>
+          <upper>1.79769e+308</upper>
+        </limit>
+      </axis>
+    </joint>
+
+    <joint name="right_wheel_joint" type="revolute">
+      <parent>base_link</parent>
+      <child>right_wheel</child>
+      <axis>
+        <xyz>0 0 1</xyz>
+        <limit>
+          <lower>-1.79769e+308</lower>
+          <upper>1.79769e+308</upper>
+        </limit>
+      </axis>
+    </joint>
+
+    <!-- DiffDrive Plugin to receive cmd_vel and apply motor torque -->
+    <plugin filename="gz-sim-diff-drive-system" name="gz::sim::systems::DiffDrive">
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>0.4</wheel_separation>
+      <wheel_radius>0.1</wheel_radius>
+      <topic>/red_target/cmd_vel</topic>
+    </plugin>
   </model>
 </sdf>
