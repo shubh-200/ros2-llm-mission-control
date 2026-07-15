@@ -71,30 +71,31 @@ def generate_launch_description():
     )
 
     # --- 5. Spawn red target after Gazebo loads ---
-    spawn_red_target = ExecuteProcess(
-        cmd=[
-            'gz', 'service',
-            '-s', '/world/tugbot_warehouse/create',
-            '--reqtype', 'gz.msgs.EntityFactory',
-            '--reptype', 'gz.msgs.Boolean',
-            '--timeout', '5000',
-            '--req',
-            f'sdf_filename: "{red_target_sdf}", '
-            f'pose: {{position: {{x: 2.0, y: 1.0, z: 0.0}}}}, '
-            f'name: "red_target"',
+    spawn_red_target = Node(
+        package='ros_gz_sim',
+        executable='create',
+        arguments=[
+            '-name', 'red_target',
+            '-file', red_target_sdf,
+            '-x', '2.0',
+            '-y', '1.0',
+            '-z', '0.1',
+            '-Y', '0.0'
         ],
-        output='screen',
+        output='screen'
     )
 
     # --- 6. Orchestration ---
+    # Delay spawning the target and loading Nav2 to give Gazebo time to boot.
+    # Spawning the target after 8 seconds, and Nav2 after 15 seconds.
+    delayed_target_spawn = TimerAction(
+        period=8.0,
+        actions=[spawn_red_target],
+    )
+
     delayed_navigation = TimerAction(
         period=15.0,
         actions=[nav2_launch, twist_stamper_node, rviz_node],
-    )
-
-    delayed_target_spawn = TimerAction(
-        period=10.0,
-        actions=[spawn_red_target],
     )
 
     return LaunchDescription([
