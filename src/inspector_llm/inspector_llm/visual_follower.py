@@ -206,6 +206,13 @@ class VisualFollower(Node):
         """Send zero velocity."""
         self._cmd_pub.publish(Twist())
 
+    def _exit_node(self):
+        """Shutdown the node cleanly."""
+        self.get_logger().info('Shutting down visual follower node...')
+        self._publish_stop()
+        if rclpy.ok():
+            rclpy.shutdown()
+
     def _stop_following(self, reason: str):
         """Stop pursuit and optionally return to start."""
         self._following = False
@@ -219,11 +226,13 @@ class VisualFollower(Node):
             self._navigate_to_start()
         else:
             self.get_logger().info('Follow complete. No return-to-start requested.')
+            self._exit_node()
 
     def _navigate_to_start(self):
         """Use Nav2 to navigate back to the saved start position."""
         if not self._nav_client.wait_for_server(timeout_sec=5.0):
             self.get_logger().error('Nav2 action server not available for return!')
+            self._exit_node()
             return
 
         goal = NavigateToPose.Goal()
@@ -243,6 +252,7 @@ class VisualFollower(Node):
         goal_handle = future.result()
         if not goal_handle.accepted:
             self.get_logger().error('Return-to-start goal rejected by Nav2!')
+            self._exit_node()
             return
 
         self.get_logger().info('Return-to-start goal accepted. Navigating...')
@@ -256,6 +266,7 @@ class VisualFollower(Node):
             self.get_logger().info('Returned to start position successfully!')
         else:
             self.get_logger().warn('Return-to-start navigation failed or was preempted.')
+        self._exit_node()
 
 
 def main(args=None):
@@ -267,7 +278,8 @@ def main(args=None):
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':

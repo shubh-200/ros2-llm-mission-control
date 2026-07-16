@@ -483,12 +483,14 @@ def main():
                 if not success:
                     print('[EXECUTOR] Mission aborted.')
                     node.destroy_node()
-                    rclpy.shutdown()
+                    if rclpy.ok():
+                        rclpy.shutdown()
                     return
 
     print('\n[EXECUTOR] Mission complete.')
     node.destroy_node()
-    rclpy.shutdown()
+    if rclpy.ok():
+        rclpy.shutdown()
 
 
 if __name__ == '__main__':
