@@ -153,7 +153,13 @@ class MissionPlanVision(BaseModel):
 # ---------------------------------------------------------------------------
 
 def call_gemini(user_prompt: str, mode: str) -> str:
-    client = genai.Client(api_key=os.environ['GEMINI_API_KEY'])
+    api_key = os.environ.get('GEMINI_API_KEY', '').strip('\'"')
+    if not api_key:
+        raise ValueError(
+            "GEMINI_API_KEY environment variable is empty or not set. "
+            "Please run: export GEMINI_API_KEY='your_key_here'"
+        )
+    client = genai.Client(api_key=api_key)
 
     if mode == 'explore':
         system_prompt = SYSTEM_PROMPT_EXPLORE
