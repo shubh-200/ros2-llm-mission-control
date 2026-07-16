@@ -384,12 +384,13 @@ The full pipeline works end-to-end:
 #### 3. Vision AI Target Detection + Follow — ✅ Complete
 
 **Implementation**: Integrated an RGB-D perception pipeline that tracks a moving target in the warehouse:
-- **Self-Propelled Target**: Spawns a moving `red_target` box using invisible wheels and a standard Gazebo DiffDrive plugin controlled by a velocity publisher (`target_mover.py`).
-- **Vision Detector**: Segment targets in real-time (`vision_detector.py`) using HSV color filters. Computes 3D coordinates by querying the organized point cloud (`/camera/points`) at the center of the target bounding box.
-- **TF Pursuit**: Broadcasts the `camera_link` $\rightarrow$ `detected_target` transform.
-- **Visual Follower**: Implements a Proportional (P) controller (`visual_follower.py`) that commands `/cmd_vel` to keep the robot oriented toward the target at a safe $\approx 1.5$m distance.
-- **Return to Start**: Saves the initial position at startup. If the target is lost for $>5.0$ seconds or the mission times out, it uses Nav2 (`NavigateToPose`) to plan a path back home.
-- **VLM/YOLO Extensibility**: Detector code includes inline guides showing how to drop in YOLOv8 or Gemini Vision APIs.
+- **Self-Propelled Target**: Spawns a `red_target` box with invisible wheels and a standard Gazebo DiffDrive plugin driven by `target_mover.py`, patrolling in a continuous circle.
+- **Vision Detector** (`vision_detector.py`): Segments the target by HSV color. Computes 3D coordinates via organized point cloud lookup at the bounding box centroid.
+- **Operator Snapshot (requirement a)**: On first detection, saves a timestamped annotated JPEG to `detections/` (bind-mounted — file appears on the host immediately) and publishes a `CompressedImage` to `/detection_snapshot`. A prominent log line is printed: `[OPERATOR ALERT] Target first detected! Snapshot saved to: /ros2_ws/detections/detection_red_target_YYYYMMDD_HHMMSS.jpg`
+- **Automatic Following (requirement b)**: Proportional (P) controller publishes `/cmd_vel` to steer the robot toward the target, maintaining a safe ~1.5m distance. Broadcasts `camera_link` → `detected_target` TF for frame-consistent control.
+- **Return to Start**: If the target is lost for >5s or the timeout expires, the follower stops and uses Nav2 `NavigateToPose` to return to the saved start position.
+- **Configurable Target**: The `target_name` is set by the LLM from the user's natural-language prompt and validated against a known registry (`red_target`, `cargo_box`, `blue_barrel`).
+- **VLM/YOLO Extensibility**: Inline code comments show exactly how to swap the HSV backend for YOLOv8 (`ultralytics`) or Gemini Vision.
 
 ---
 

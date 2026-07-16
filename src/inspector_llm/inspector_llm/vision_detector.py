@@ -30,9 +30,10 @@ To swap to a different detection method, replace the `_detect_target()` method:
      - Run inference in _detect_target()
 """
 
+import os
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image, PointCloud2
+from sensor_msgs.msg import Image, PointCloud2, CompressedImage
 from geometry_msgs.msg import PoseStamped, TransformStamped
 from std_msgs.msg import String
 import cv2
@@ -40,6 +41,7 @@ import numpy as np
 from cv_bridge import CvBridge
 import struct
 from tf2_ros import TransformBroadcaster
+from datetime import datetime
 
 
 # --- HSV color ranges for known targets ---
@@ -91,7 +93,9 @@ class VisionDetector(Node):
 
         # --- Parameters ---
         self.declare_parameter('target_name', 'red_target')
+        self.declare_parameter('snapshot_dir', '/ros2_ws/detections')
         self._target_name = self.get_parameter('target_name').value
+        self._snapshot_dir = self.get_parameter('snapshot_dir').value
 
         if self._target_name not in TARGET_COLORS:
             self.get_logger().error(
@@ -105,11 +109,16 @@ class VisionDetector(Node):
             f'Vision detector initialized for: {self._target_cfg["label"]}'
         )
 
+        # Ensure snapshot directory exists
+        os.makedirs(self._snapshot_dir, exist_ok=True)
+        self.get_logger().info(f'Detection snapshots will be saved to: {self._snapshot_dir}')
+
         # --- State ---
         self._bridge = CvBridge()
         self._latest_pc = None
         self._last_detection_time = None
         self._detection_active = True
+        self._snapshot_saved = False   # only save once per mission (first detection)
 
         # --- Subscribers ---
         self.create_subscription(Image, '/camera/image', self._image_cb, 10)
@@ -119,6 +128,8 @@ class VisionDetector(Node):
         self._pose_pub = self.create_publisher(PoseStamped, '/detected_target', 10)
         self._img_pub = self.create_publisher(Image, '/detection_image', 10)
         self._status_pub = self.create_publisher(String, '/detection_status', 10)
+        # CompressedImage snapshot pushed once on first detection
+        self._snapshot_pub = self.create_publisher(CompressedImage, '/detection_snapshot', 1)
 
         # --- TF Broadcaster ---
         self._tf_broadcaster = TransformBroadcaster(self)
@@ -159,7 +170,12 @@ class VisionDetector(Node):
                         (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             cv2.circle(annotated, (center_u, center_v), 5, (0, 0, 255), -1)
 
-            # Publish annotated image
+            # --- First-detection operator notification ---
+            if not self._snapshot_saved:
+                self._save_snapshot(annotated)
+                self._snapshot_saved = True
+
+            # Publish annotated image (continuous stream)
             self._img_pub.publish(
                 self._bridge.cv2_to_imgmsg(annotated, encoding='bgr8')
             )
@@ -251,6 +267,37 @@ class VisionDetector(Node):
         center_v = y + h // 2
 
         return (center_u, center_v, (x, y, w, h), int(area))
+
+    def _save_snapshot(self, annotated_frame: np.ndarray):
+        """
+        Save annotated detection frame to disk and publish a CompressedImage
+        to /detection_snapshot so any subscriber (e.g. RViz, a web bridge,
+        a logging service) receives the first-detection alert.
+        """
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'detection_{self._target_name}_{timestamp}.jpg'
+        filepath = os.path.join(self._snapshot_dir, filename)
+
+        # Write to disk (visible on the host via the bind-mounted volume)
+        success = cv2.imwrite(filepath, annotated_frame)
+        if success:
+            self.get_logger().info(
+                f'[OPERATOR ALERT] Target first detected! Snapshot saved to: {filepath}'
+            )
+        else:
+            self.get_logger().warn(f'Failed to write snapshot to {filepath}')
+
+        # Also publish as CompressedImage for any ROS subscriber
+        ret, jpeg_buf = cv2.imencode('.jpg', annotated_frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        if ret:
+            snapshot_msg = CompressedImage()
+            snapshot_msg.header.stamp = self.get_clock().now().to_msg()
+            snapshot_msg.format = 'jpeg'
+            snapshot_msg.data = jpeg_buf.tobytes()
+            self._snapshot_pub.publish(snapshot_msg)
+            self.get_logger().info(
+                f'[OPERATOR ALERT] Snapshot published to /detection_snapshot'
+            )
 
     def _lookup_depth(self, u: int, v: int, pc_msg: PointCloud2):
         """

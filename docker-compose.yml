@@ -18,6 +18,8 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       # Optional: Mount your source code directly for live-editing Python launch files without rebuilding the container
       - ./src:/ros2_ws/src:rw
+      # Detection snapshots — images saved here are visible on the host immediately
+      - ./detections:/ros2_ws/detections:rw
     # Launch the entire orchestrator immediately upon boot
     # To run explore mode, override this with: ros2 launch inspector_bot explore_bringup.launch.py
     command: ros2 launch inspector_bot master_bringup.launch.py
@@ -40,6 +42,8 @@ services:
       - ./src:/ros2_ws/src:rw
       # Persist saved missions outside the container
       - ./missions:/ros2_ws/missions:rw
+      # Persist detection snapshots on the host
+      - ./detections:/ros2_ws/detections:rw
     depends_on:
       - inspector_stack
     command: ros2 run inspector_llm llm_bridge
