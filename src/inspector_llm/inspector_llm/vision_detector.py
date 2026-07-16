@@ -49,10 +49,10 @@ from datetime import datetime
 # Format: {name: {"lower": [H, S, V], "upper": [H, S, V]}}
 TARGET_COLORS = {
     "red_target": {
-        # Red wraps around 0 in HSV — need two ranges
+        # Tightened to select only pure, bright red and ignore dull brown pillars/racks
         "ranges": [
-            {"lower": [0, 100, 100], "upper": [10, 255, 255]},
-            {"lower": [170, 100, 100], "upper": [180, 255, 255]},
+            {"lower": [0, 180, 150], "upper": [7, 255, 255]},
+            {"lower": [173, 180, 150], "upper": [180, 255, 255]},
         ],
         "label": "Red Target Box",
     },
