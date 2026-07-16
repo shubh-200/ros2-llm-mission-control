@@ -337,7 +337,7 @@ def execute_vision_mission(node, mission: dict):
             'ros2', 'run', 'inspector_llm', 'vision_detector',
             '--ros-args',
             '-p', f'target_name:={target}',
-            '-p', 'snapshot_dir:=/ros2_ws/detections',
+            '-p', 'snapshot_dir:=detections',
             '-p', 'use_sim_time:=true',
         ]
         detector_proc = subprocess.Popen(detector_cmd)

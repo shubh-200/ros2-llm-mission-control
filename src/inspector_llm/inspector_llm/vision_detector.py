@@ -93,9 +93,9 @@ class VisionDetector(Node):
 
         # --- Parameters ---
         self.declare_parameter('target_name', 'red_target')
-        self.declare_parameter('snapshot_dir', '/ros2_ws/detections')
+        self.declare_parameter('snapshot_dir', 'detections')
         self._target_name = self.get_parameter('target_name').value
-        self._snapshot_dir = self.get_parameter('snapshot_dir').value
+        self._snapshot_dir = os.path.abspath(self.get_parameter('snapshot_dir').value)
 
         if self._target_name not in TARGET_COLORS:
             self.get_logger().error(
