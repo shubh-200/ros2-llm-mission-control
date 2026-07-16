@@ -1,0 +1,16 @@
+{
+  "mode": "explore",
+  "mission_name": "Thorough Warehouse Exploration",
+  "description": "Explore the warehouse thoroughly for 3 minutes.",
+  "max_speed": 0.5,
+  "explore_config": {
+    "explore_duration_sec": 180,
+    "max_frontiers": 3,
+    "save_map": true
+  },
+  "frame_id": "map",
+  "loop_count": 1,
+  "return_to_start": false,
+  "stop_on_failure": false,
+  "waypoints": []
+}

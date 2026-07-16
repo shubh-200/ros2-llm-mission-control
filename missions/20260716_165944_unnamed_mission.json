@@ -1,0 +1,16 @@
+{
+  "mode": "explore",
+  "mission_name": "unnamed_mission",
+  "description": "",
+  "max_speed": 0.3,
+  "explore_config": {
+    "explore_duration_sec": 240,
+    "max_frontiers": 3,
+    "save_map": true
+  },
+  "frame_id": "map",
+  "loop_count": 1,
+  "return_to_start": false,
+  "stop_on_failure": false,
+  "waypoints": []
+}

@@ -1,0 +1,17 @@
+{
+  "mode": "vision",
+  "vision_config": {
+    "target": "red_target",
+    "action": "follow",
+    "return_to_start": true,
+    "timeout_sec": 60
+  },
+  "mission_name": "unnamed_mission",
+  "description": "",
+  "frame_id": "map",
+  "loop_count": 1,
+  "return_to_start": false,
+  "max_speed": 0.3,
+  "stop_on_failure": false,
+  "waypoints": []
+}

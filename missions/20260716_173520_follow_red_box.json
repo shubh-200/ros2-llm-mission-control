@@ -1,0 +1,17 @@
+{
+  "mode": "vision",
+  "mission_name": "Follow Red Box",
+  "description": "Find and follow the red_target.",
+  "max_speed": 0.5,
+  "vision_config": {
+    "target": "red_target",
+    "action": "follow",
+    "timeout_sec": 60,
+    "return_to_start": true
+  },
+  "frame_id": "map",
+  "loop_count": 1,
+  "return_to_start": false,
+  "stop_on_failure": false,
+  "waypoints": []
+}

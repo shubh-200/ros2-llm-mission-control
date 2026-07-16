@@ -1,0 +1,17 @@
+{
+  "mode": "vision",
+  "mission_name": "follow_red_target",
+  "description": "Detect and follow the red target box in the warehouse",
+  "vision_config": {
+    "target": "red_target",
+    "action": "follow",
+    "timeout_sec": 60,
+    "return_to_start": true
+  },
+  "frame_id": "map",
+  "loop_count": 1,
+  "return_to_start": false,
+  "max_speed": 0.3,
+  "stop_on_failure": false,
+  "waypoints": []
+}
