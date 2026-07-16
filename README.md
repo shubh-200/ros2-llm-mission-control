@@ -110,6 +110,11 @@ Here's what happens step-by-step when you type a command:
 ```
 
 ---
+## Demo Video
+[![Watch the Demo]](https://youtu.be/IT6_fz2sV7o)
+*Click the image above to watch the full execution of the LLM Mission Control.*
+---
+
 
 ## Repository Structure
 
