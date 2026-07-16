@@ -49,10 +49,11 @@ from datetime import datetime
 # Format: {name: {"lower": [H, S, V], "upper": [H, S, V]}}
 TARGET_COLORS = {
     "red_target": {
-        # Tightened to select only pure, bright red and ignore dull brown pillars/racks
+        # Strict Hue selection [0-5] and [175-180] completely excludes brown (Hue 10-25)
+        # Moderate Saturation/Value lets us track under shadows and lighting changes
         "ranges": [
-            {"lower": [0, 180, 150], "upper": [7, 255, 255]},
-            {"lower": [173, 180, 150], "upper": [180, 255, 255]},
+            {"lower": [0, 120, 100], "upper": [5, 255, 255]},
+            {"lower": [175, 120, 100], "upper": [180, 255, 255]},
         ],
         "label": "Red Target Box",
     },
@@ -71,7 +72,7 @@ TARGET_COLORS = {
 }
 
 # --- Detection thresholds ---
-MIN_CONTOUR_AREA = 500    # pixels² — ignore tiny blobs
+MIN_CONTOUR_AREA = 1000    # pixels² — ignore background noise and small blobs
 LOST_TIMEOUT_SEC = 2.0    # seconds without detection before publishing "lost"
 
 
