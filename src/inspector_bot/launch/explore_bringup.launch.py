@@ -37,19 +37,7 @@ def generate_launch_description():
         }.items()
     )
 
-    # --- 4. SLAM Toolbox (online async) ---
-    # Nav2's bringup_launch.py with slam:=True should start slam_toolbox,
-    # but we also launch it explicitly with our tuned params to ensure
-    # our config is used. If Nav2's bringup handles it, this can be removed.
-    slam_toolbox_node = Node(
-        package='slam_toolbox',
-        executable='async_slam_toolbox_node',
-        name='slam_toolbox',
-        parameters=[slam_params_file, {'use_sim_time': True}],
-        output='screen',
-    )
-
-    # --- 5. Twist stamper bridge ---
+    # --- 4. Twist stamper bridge ---
     twist_stamper_node = Node(
         package='twist_stamper',
         executable='twist_stamper',
@@ -60,7 +48,7 @@ def generate_launch_description():
         ]
     )
 
-    # --- 6. RViz ---
+    # --- 5. RViz ---
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
@@ -69,12 +57,11 @@ def generate_launch_description():
         parameters=[{'use_sim_time': True}]
     )
 
-    # --- 7. Orchestration ---
+    # --- 6. Orchestration ---
     # Give Gazebo 15s to boot before starting Nav2 + SLAM
     delayed_nav_and_slam = TimerAction(
         period=15.0,
         actions=[
-            slam_toolbox_node,
             nav2_launch,
             twist_stamper_node,
             rviz_node,
