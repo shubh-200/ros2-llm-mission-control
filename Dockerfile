@@ -35,7 +35,9 @@ RUN python3 -m pip install --break-system-packages \
     google-genai \
     jsonschema \
     numpy \
-    scipy
+    scipy \
+    Pillow
+
 
 # 3. Setup the Workspace
 WORKDIR /ros2_ws
