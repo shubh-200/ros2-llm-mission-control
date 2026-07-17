@@ -1,6 +1,6 @@
 # ROS 2 LLM Mission Control
 
-**Natural-language mission planning for an autonomous ground robot - Prompt → LLM → Validated JSON → Deterministic Executor → Gazebo / Nav2.**
+**Natural-language mission planning for an autonomous ground robot - Prompt -> LLM -> Validated JSON -> Deterministic Executor -> Gazebo / Nav2.**
 
 ---
 
@@ -95,18 +95,18 @@ graph TD
 Here's what happens step-by-step when you type a command:
 
 ```
-1.  rclpy.init()                          ← ROS 2 node starts
-2.  Create node, costmap subscriber,      ← Plumbing setup
+1.  rclpy.init()                          - ROS 2 node starts
+2.  Create node, costmap subscriber,      - Plumbing setup
     Nav2 action client
-3.  publish_initial_pose()                ← Seeds AMCL so map→odom TF is valid (Mapped & Vision)
-4.  input("Enter command: ")              ← Operator types natural language
-5.  call_gemini(prompt)                   ← LLM generates structured JSON
-6.  validate_json_schema(raw_json)        ← Schema + defaults + return_to_start
-7.  save_mission(mission)                 ← Save timestamped JSON to missions/
-8.  nav_client.wait_for_server()          ← Wait for Nav2 to be ready
-9.  costmap_validator.wait_for_costmap()  ← Wait for live costmap data
-10. validate_waypoints()                  ← Map bounds + costmap occupancy check
-11. execute_mission()                     ← Deterministic waypoint-by-waypoint nav / subprocess nodes
+3.  publish_initial_pose()                - Seeds AMCL so map→odom TF is valid (Mapped & Vision)
+4.  input("Enter command: ")              - Operator types natural language
+5.  call_gemini(prompt)                   - LLM generates structured JSON
+6.  validate_json_schema(raw_json)        - Schema + defaults + return_to_start
+7.  save_mission(mission)                 - Save timestamped JSON to missions/
+8.  nav_client.wait_for_server()          - Wait for Nav2 to be ready
+9.  costmap_validator.wait_for_costmap()  - Wait for live costmap data
+10. validate_waypoints()                  - Map bounds + costmap occupancy check
+11. execute_mission()                     - Deterministic waypoint-by-waypoint nav / subprocess nodes
 ```
 
 ---
@@ -155,9 +155,9 @@ ros2-llm-mission-control/
 │   │
 │   ├── inspector_vision/               # Legacy C++ vision nodes (retained)
 │   │
-│   └── inspector_llm/                  # ★ LLM mission planning package
+│   └── inspector_llm/                  # LLM mission planning package
 │       ├── inspector_llm/
-│       │   ├── llm_bridge.py           #   Main entry: prompt → LLM → validate → execute
+│       │   ├── llm_bridge.py           #   Main entry: prompt -> LLM -> validate -> execute
 │       │   ├── mission_validator.py    #   JSON schema + map bounds + costmap checks
 │       │   ├── mission_executor.py     #   Nav2 action client, initialpose, waypoint nav
 │       │   ├── frontier_explorer.py    #   Frontier detector & clusterer for SLAM exploration
@@ -184,7 +184,7 @@ ros2-llm-mission-control/
 
 | File | Purpose |
 |---|---|
-| [`llm_bridge.py`](src/inspector_llm/inspector_llm/llm_bridge.py) | Orchestrates the full pipeline: prompt input → Gemini call → validation → execution. |
+| [`llm_bridge.py`](src/inspector_llm/inspector_llm/llm_bridge.py) | Orchestrates the full pipeline: prompt input -> Gemini call -> validation -> execution. |
 | [`mission_validator.py`](src/inspector_llm/inspector_llm/mission_validator.py) | JSON Schema validation, map bounds check, live costmap occupancy check. |
 | [`frontier_explorer.py`](src/inspector_llm/inspector_llm/frontier_explorer.py) | Custom connected-components frontier detector for SLAM exploration. |
 | [`vision_detector.py`](src/inspector_llm/inspector_llm/vision_detector.py) | Segments target color, looks up 3D centroid from point cloud, saves snapshot. |
@@ -245,10 +245,14 @@ Wait ~30 seconds until you see Nav2/SLAM/Gazebo reporting ready in the logs.
 ### Step 3: Run the LLM Bridge
 
 ```bash
-# Terminal 2 — Exec into the running container
+# Terminal 2 - Exec into the running container
 docker exec -it inspector_autonomy_container bash
 
-# Inside the container, set your Gemini API key:
+# Inside the container, source the ROS 2 underlay and workspace overlay:
+source /opt/ros/jazzy/setup.bash
+source /ros2_ws/install/setup.bash
+
+# Set your Gemini API key:
 export GEMINI_API_KEY="your-api-key-here"
 
 # For Option A (Mapped Mode):
@@ -330,7 +334,7 @@ export GEMINI_API_KEY="your-api-key-here"
 
 | Prompt | What Happens |
 |---|---|
-| `"Patrol the perimeter twice at 0.3 m/s"` | Robot visits all 4 corners (NE → SE → SW → NW), loops twice |
+| `"Patrol the perimeter twice at 0.3 m/s"` | Robot visits all 4 corners (NE -> SE -> SW -> NW), loops twice |
 | `"Go to loading bay, wait 5 seconds, then return to origin"` | Robot navigates to (1.5, 0.5), waits, then goes to (0, 0) |
 | `"Explore the warehouse for 3 minutes"` | Switches to SLAM mode, autonomously maps warehouse using frontiers, saves final posegraph |
 | `"Find the red box and follow it"` | Switches to Vision mode, tracks moving box, saves snapshot, returns home on timeout |
@@ -361,7 +365,7 @@ Every mission plan (whether LLM-generated or hand-crafted) is validated against 
 
 ## Validation & Safety Guardrails
 
-The system uses **three independent validation layers** — no single point of failure:
+The system uses **three independent validation layers** - no single point of failure:
 
 1.  **Pydantic Schema at Generation Time:** Gemini's `response_schema` constrains the LLM output at token generation. The LLM physically cannot output wrong field names or invalid types.
 2.  **JSON Schema Validation After Parsing:** `jsonschema.validate()` runs independently on the parsed dict. Catches edge cases that Pydantic might not (e.g., `null` values, out-of-range limits).
@@ -373,10 +377,10 @@ The system uses **three independent validation layers** — no single point of f
 
 ## Challenges Attempted
 
-### Core Task — ✅ Complete
+### Core Task - Completed
 
 The full pipeline works end-to-end:
-- Natural language prompt → Gemini 2.5 Flash → structured JSON → schema validation → costmap validation → deterministic Nav2 execution.
+- Natural language prompt -> Gemini 2.5 Flash -> structured JSON -> schema validation -> costmap validation -> deterministic Nav2 execution.
 - LLM is never in the control loop. Same JSON = same behavior.
 - All missions are saved as timestamped, auditable JSON files.
 
@@ -392,7 +396,7 @@ The full pipeline works end-to-end:
 
 **Technical choices**: Gazebo multi-robot namespacing (`/robot1/`, `/robot2/`), each with its own Nav2 stack. A central `squad_coordinator` node would consume the validated squad JSON and dispatch per-agent missions.
 
-#### 2. SLAM / Autonomous Navigation — ✅ Complete
+#### 2. SLAM / Autonomous Navigation - Completed
 
 **Implementation**: Replaced static localization and pre-built map checks with active online mapping and exploration:
 - **Online SLAM**: Uses `slam_toolbox` in `online_async` mode to construct the warehouse map on-the-fly.
@@ -400,13 +404,13 @@ The full pipeline works end-to-end:
 - **Clustering Thresholds**: Bootstraps frontier constraints dynamically (min size of 1 cell, min distance of 0.3m for small maps) and scales to mature thresholds as the map grows to ensure continuous coverage.
 - **Serialization**: Upon mission completion, calls the `/slam_toolbox/serialize_map` service to save the explored region as `.posegraph` and `.data` files.
 
-#### 3. Vision AI Target Detection + Follow — ✅ Complete
+#### 3. Vision AI Target Detection + Follow - Completed
 
 **Implementation**: Integrated an RGB-D perception pipeline that tracks a moving target in the warehouse:
 - **Self-Propelled Target**: Spawns a `red_target` box with invisible wheels and a standard Gazebo DiffDrive plugin driven by `target_mover.py`, patrolling in a continuous circle.
 - **Vision Detector** (`vision_detector.py`): Segments the target by HSV color. Computes 3D coordinates via organized point cloud lookup at the bounding box centroid.
-- **Operator Snapshot (requirement a)**: On first detection, saves a timestamped annotated JPEG to `detections/` (bind-mounted — file appears on the host immediately) and publishes a `CompressedImage` to `/detection_snapshot`. A prominent log line is printed: `[OPERATOR ALERT] Target first detected! Snapshot saved to: /ros2_ws/detections/detection_red_target_YYYYMMDD_HHMMSS.jpg`
-- **Automatic Following (requirement b)**: Proportional (P) controller publishes `/cmd_vel` to steer the robot toward the target, maintaining a safe ~1.5m distance. Broadcasts `camera_link` → `detected_target` TF for frame-consistent control.
+- **Operator Snapshot (requirement a)**: On first detection, saves a timestamped annotated JPEG to `detections/` (bind-mounted - file appears on the host immediately) and publishes a `CompressedImage` to `/detection_snapshot`. A prominent log line is printed: `[OPERATOR ALERT] Target first detected! Snapshot saved to: /ros2_ws/detections/detection_red_target_YYYYMMDD_HHMMSS.jpg`
+- **Automatic Following (requirement b)**: Proportional (P) controller publishes `/cmd_vel` to steer the robot toward the target, maintaining a safe ~1.5m distance. Broadcasts `camera_link` -> `detected_target` TF for frame-consistent control.
 - **Return to Start**: If the target is lost for >5s or the timeout expires, the follower stops and uses Nav2 `NavigateToPose` to return to the saved start position.
 - **Configurable Target**: The `target_name` is set by the LLM from the user's natural-language prompt and validated against a known registry (`red_target`, `cargo_box`, `blue_barrel`).
 - **VLM/YOLO Extensibility**: Inline code comments show exactly how to swap the HSV backend for YOLOv8 (`ultralytics`) or Gemini Vision.
@@ -424,8 +428,8 @@ The full pipeline works end-to-end:
 
 ### What Would Stay the Same
 
--   **The pipeline architecture** (Prompt → LLM → Validated JSON → Executor) scales well. Adding new capabilities means extending the JSON schema, not rewriting the executor.
--   **Schema-based validation** is composable — new constraints can be added without touching the LLM or executor.
+-   **The pipeline architecture** (Prompt -> LLM -> Validated JSON -> Executor) scales well. Adding new capabilities means extending the JSON schema, not rewriting the executor.
+-   **Schema-based validation** is composable - new constraints can be added without touching the LLM or executor.
 -   **Deterministic execution** from validated JSON is the correct pattern for safety-critical systems. The gap between sim and real is in the executor layer (real hardware drivers), not in the planning pipeline.
 
 ---
