@@ -69,7 +69,7 @@ def generate_launch_description():
     #     arguments=['/cmd_vel', '/diff_drive_controller/cmd_vel'],
     #     output='screen'
     # )
-    # (Note: Gazebo itself acts as the controller_manager now thanks to our gz_ros2_control plugin!)
+    
     spawn_broadcaster = Node(
         package='controller_manager',
         executable='spawner',
@@ -89,7 +89,6 @@ def generate_launch_description():
         arguments=[
             '-name', 'misplaced_cargo',
             '-file', box_sdf_path,
-            # Coordinates: Placed 1.5 meters in front of the robot's starting position
             '-x', '-7.3',
             '-y', '8.3',
             '-z', '0.0',

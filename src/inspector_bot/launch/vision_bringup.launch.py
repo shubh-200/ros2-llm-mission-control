@@ -31,14 +31,14 @@ def generate_launch_description():
     # Path to the red target model
     red_target_sdf = os.path.join(inspector_pkg, 'models', 'red_target', 'model.sdf')
 
-    # --- 1. Boot Gazebo & Spawn Robot ---
+    # 1. Boot Gazebo & Spawn Robot
     gazebo_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(inspector_pkg, 'launch', 'sim_robot.launch.py')
         )
     )
 
-    # --- 2. Nav2 (for return-to-start) ---
+    # 2. Nav2 (for return-to-start)
     nav2_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(nav2_pkg, 'launch', 'bringup_launch.py')
@@ -50,7 +50,7 @@ def generate_launch_description():
         }.items()
     )
 
-    # --- 3. Twist Stamper ---
+    # 3. Twist Stamper
     twist_stamper_node = Node(
         package='twist_stamper',
         executable='twist_stamper',
@@ -61,7 +61,7 @@ def generate_launch_description():
         ]
     )
 
-    # --- 4. RViz ---
+    # 4. RViz
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
@@ -70,7 +70,7 @@ def generate_launch_description():
         parameters=[{'use_sim_time': True}],
     )
 
-    # --- 5. Spawn red target after Gazebo loads ---
+    # 5. Spawn red target after Gazebo loads
     spawn_red_target = Node(
         package='ros_gz_sim',
         executable='create',
@@ -85,7 +85,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    # --- 6. Target Bridge and Mover (for red target movement) ---
+    # 6. Target Bridge and Mover (for red target movement)
     target_bridge = Node(
         package='ros_gz_bridge',
         executable='parameter_bridge',
@@ -102,7 +102,7 @@ def generate_launch_description():
         output='screen'
     )
 
-    # --- 7. Orchestration ---
+    # 7. Orchestration
     # Delay spawning the target and loading Nav2 to give Gazebo time to boot.
     # Spawning the target after 8 seconds, and Nav2 / mover after 15 seconds.
     delayed_target_spawn = TimerAction(

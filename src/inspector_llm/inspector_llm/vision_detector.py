@@ -1,5 +1,5 @@
 """
-Vision Target Detector — ROS 2 Node
+Vision Target Detector - ROS 2 Node
 
 Subscribes to /camera/image (RGB) and /camera/points (PointCloud2),
 detects colored objects via HSV segmentation, computes their 3D position
@@ -22,8 +22,8 @@ To swap to a different detection method, replace the `_detect_target()` method:
      - Encode frame as JPEG, send to Gemini with prompt:
        "Is there a {target} in this image? If yes, return bounding box [x1,y1,x2,y2]"
      - Parse response, compute center
-     - CAVEAT: ~2s latency per frame — use only for one-shot ID, not continuous tracking
-     - Hybrid approach: VLM identifies target once → switch to HSV/color tracking
+     - CAVEAT: ~2s latency per frame - use only for one-shot ID, not continuous tracking
+     - Hybrid approach: VLM identifies target once -> switch to HSV/color tracking
 
   3. Custom CNN:
      - Load ONNX model via cv2.dnn.readNetFromONNX()
@@ -44,7 +44,7 @@ from tf2_ros import TransformBroadcaster
 from datetime import datetime
 
 
-# --- HSV color ranges for known targets ---
+# HSV color ranges for known targets
 # These are tuned for Gazebo's rendering. Real-world would need calibration.
 # Format: {name: {"lower": [H, S, V], "upper": [H, S, V]}}
 TARGET_COLORS = {
@@ -71,8 +71,8 @@ TARGET_COLORS = {
     },
 }
 
-# --- Detection thresholds ---
-MIN_CONTOUR_AREA = 1000    # pixels² — ignore background noise and small blobs
+# Detection thresholds
+MIN_CONTOUR_AREA = 1000    # pixels^2 - ignore background noise and small blobs
 LOST_TIMEOUT_SEC = 2.0    # seconds without detection before publishing "lost"
 
 
@@ -81,9 +81,9 @@ class VisionDetector(Node):
     Detects colored targets in the camera feed and publishes their 3D pose.
 
     Published topics:
-      /detected_target   (PoseStamped)  — 3D pose in camera_link frame
-      /detection_image   (Image)        — annotated camera feed for RViz
-      /detection_status  (String)       — "tracking" | "lost" | "idle"
+      /detected_target   (PoseStamped)  - 3D pose in camera_link frame
+      /detection_image   (Image)        - annotated camera feed for RViz
+      /detection_status  (String)       - "tracking" | "lost" | "idle"
 
     Parameters:
       target_name (str): Key into TARGET_COLORS dict. Default: "red_target"
@@ -92,7 +92,7 @@ class VisionDetector(Node):
     def __init__(self):
         super().__init__('vision_detector')
 
-        # --- Parameters ---
+        # Parameters
         self.declare_parameter('target_name', 'red_target')
         self.declare_parameter('snapshot_dir', 'detections')
         self._target_name = self.get_parameter('target_name').value
@@ -114,28 +114,28 @@ class VisionDetector(Node):
         os.makedirs(self._snapshot_dir, exist_ok=True)
         self.get_logger().info(f'Detection snapshots will be saved to: {self._snapshot_dir}')
 
-        # --- State ---
+        # State
         self._bridge = CvBridge()
         self._latest_pc = None
         self._last_detection_time = None
         self._detection_active = True
         self._snapshot_saved = False   # only save once per mission (first detection)
 
-        # --- Subscribers ---
+        # Subscribers
         self.create_subscription(Image, '/camera/image', self._image_cb, 10)
         self.create_subscription(PointCloud2, '/camera/points', self._pc_cb, 10)
 
-        # --- Publishers ---
+        # Publishers
         self._pose_pub = self.create_publisher(PoseStamped, '/detected_target', 10)
         self._img_pub = self.create_publisher(Image, '/detection_image', 10)
         self._status_pub = self.create_publisher(String, '/detection_status', 10)
         # CompressedImage snapshot pushed once on first detection
         self._snapshot_pub = self.create_publisher(CompressedImage, '/detection_snapshot', 1)
 
-        # --- TF Broadcaster ---
+        # TF Broadcaster
         self._tf_broadcaster = TransformBroadcaster(self)
 
-        # --- Timer for status checking ---
+        # Timer for status checking
         self.create_timer(0.5, self._status_timer_cb)
 
         self.get_logger().info('Vision detector node started.')
@@ -145,18 +145,18 @@ class VisionDetector(Node):
         self._latest_pc = msg
 
     def _image_cb(self, msg: Image):
-        """Main detection callback — runs on every camera frame."""
+        """Main detection callback - runs on every camera frame."""
         if not self._detection_active:
             return
 
-        # Convert ROS Image → OpenCV BGR
+        # Convert ROS Image -> OpenCV BGR
         try:
             cv_image = self._bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
         except Exception as e:
             self.get_logger().error(f'cv_bridge error: {e}')
             return
 
-        # --- Detect target ---
+        # Detect target
         result = self._detect_target(cv_image)
 
         if result is not None:
@@ -171,7 +171,7 @@ class VisionDetector(Node):
                         (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
             cv2.circle(annotated, (center_u, center_v), 5, (0, 0, 255), -1)
 
-            # --- First-detection operator notification ---
+            # First-detection operator notification
             if not self._snapshot_saved:
                 self._save_snapshot(annotated)
                 self._snapshot_saved = True
@@ -181,7 +181,7 @@ class VisionDetector(Node):
                 self._bridge.cv2_to_imgmsg(annotated, encoding='bgr8')
             )
 
-            # --- 3D localization from point cloud ---
+            # 3D localization from point cloud
             if self._latest_pc is not None:
                 pose_3d = self._lookup_depth(center_u, center_v, self._latest_pc)
                 if pose_3d is not None:
@@ -209,7 +209,7 @@ class VisionDetector(Node):
                     self._tf_broadcaster.sendTransform(t)
 
         else:
-            # No detection — still publish annotated image (no overlay)
+            # No detection - still publish annotated image (no overlay)
             self._img_pub.publish(
                 self._bridge.cv2_to_imgmsg(cv_image, encoding='bgr8')
             )

@@ -34,12 +34,12 @@ def publish_initial_pose(node):
     msg.pose.pose.position.z = 0.0
     msg.pose.pose.orientation.w = 1.0  # yaw=0 → quaternion (0,0,0,1)
 
-    # Covariance: AMCL needs some initial uncertainty — these are standard values
+    # Covariance: AMCL needs some initial uncertainty - these are standard values
     msg.pose.covariance[0]  = 0.25   # xx
     msg.pose.covariance[7]  = 0.25   # yy
     msg.pose.covariance[35] = 0.07   # yaw
 
-    # Publish a few times — /initialpose uses BEST_EFFORT and can be dropped
+    # Publish a few times - /initialpose uses BEST_EFFORT and can be dropped
     time.sleep(1.0)  # wait for subscriber to connect
     for _ in range(5):
         pub.publish(msg)
@@ -61,7 +61,7 @@ def navigate_to_waypoint(nav_client, node, x, y, yaw):
     goal_msg.pose.pose.position.y = y
     goal_msg.pose.pose.position.z = 0.0
 
-    # Convert yaw (radians) to quaternion — only z and w needed for 2D
+    # Convert yaw (radians) to quaternion - only z and w needed for 2D
     goal_msg.pose.pose.orientation.z = math.sin(yaw / 2.0)
     goal_msg.pose.pose.orientation.w = math.cos(yaw / 2.0)
 
@@ -88,23 +88,23 @@ def navigate_to_waypoint(nav_client, node, x, y, yaw):
 def execute_mission(mission: dict):
     rclpy.init()
     node = Node('mission_executor')
-     # --- 1. Load static map metadata (instant, no ROS needed) ---
+     # 1. Load static map metadata 
     map_meta = load_map_metadata(MAP_YAML)
-    # --- 2. Create costmap subscriber (just registers it, doesn't wait yet) ---
+    # 2. Create costmap subscriber 
     costmap_validator = CostmapValidator(node)
-    # --- 3. Set up Nav2 action client (just creates the client object) ---
+    # 3. Set up Nav2 action client
     nav_client = ActionClient(node, NavigateToPose, '/navigate_to_pose')
-    # --- 4. Publish initial pose FIRST → AMCL starts localizing → 
-    #        map→odom TF becomes valid → costmap can build properly ---
+    # 4. Publish initial pose FIRST -> AMCL starts localizing -> 
+    #        map->odom TF becomes valid -> costmap can build properly
     publish_initial_pose(node)
-    # --- 5. Now wait for Nav2 action server ---
+    # 5. Now wait for Nav2 action server
     node.get_logger().info('Waiting for Nav2...')
     nav_client.wait_for_server()
-    # --- 6. NOW wait for costmap — transforms are valid, it arrives quickly ---
+    # 6. NOW wait for costmap - transforms are valid, it arrives quickly
     node.get_logger().info('Waiting for costmap...')
     costmap_validator.wait_for_costmap(node)
     node.get_logger().info('Costmap received.')
-    # --- 7. Validate all waypoints before robot moves ---
+    # 7. Validate all waypoints before robot moves
     try:
         validate_waypoints(mission['waypoints'], map_meta, costmap_validator)
         node.get_logger().info('All waypoints validated. Safe to execute.')
@@ -113,7 +113,7 @@ def execute_mission(mission: dict):
         node.destroy_node()
         rclpy.shutdown()
         return
-    # --- 8. Execute waypoints ---
+    # 8. Execute waypoints
     waypoints  = mission['waypoints']
     loop_count = mission.get('loop_count', 1)
     for loop in range(loop_count):

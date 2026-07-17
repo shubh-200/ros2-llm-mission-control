@@ -1,6 +1,6 @@
 import yaml
 import math
-from PIL import Image  # pip install Pillow
+from PIL import Image
 import os
 from nav_msgs.msg import OccupancyGrid
 import rclpy
@@ -37,7 +37,7 @@ def load_map_metadata(map_yaml_path: str) -> dict:
     }
 
 def world_to_grid(x: float, y: float, meta: dict) -> tuple[int, int]:
-    """Convert world (x, y) → (col, row) in the map grid."""
+    """Convert world (x, y) -> (col, row) in the map grid."""
     col = int((x - meta['origin_x']) / meta['resolution'])
     row = int((y - meta['origin_y']) / meta['resolution'])
     return col, row
@@ -83,7 +83,7 @@ class CostmapValidator:
         cm = self._costmap
         info = cm.info
 
-        # World → costmap grid cell
+        # World -> costmap grid cell
         col = int((x - info.origin.position.x) / info.resolution)
         row = int((y - info.origin.position.y) / info.resolution)
 
@@ -121,16 +121,16 @@ def validate_waypoints(waypoints: list, map_meta: dict, costmap_validator: Costm
         if not costmap_validator.is_safe(x, y):
             cost = costmap_validator.get_cost_at(x, y)
             raise ValueError(
-                f'{label} is unsafe — costmap cost={cost}. '
+                f'{label} is unsafe - costmap cost={cost}. '
                 f'Cell is {"unknown" if cost == 255 else "occupied or too close to obstacle"}.'
             )
 
-    return waypoints  # all clear
+    return waypoints  
 
 def _apply_defaults(mission: dict):
     """
     Replace None (null) values with safe defaults.
-    Uses explicit 'is None' checks — setdefault() only fills MISSING keys, not null ones.
+    Uses explicit 'is None' checks - setdefault() only fills MISSING keys, not null ones.
     Must run BEFORE jsonschema.validate().
     """
     _defaults = {
@@ -195,19 +195,19 @@ def validate_json_schema(raw_json: str) -> dict:
     Returns a fully resolved mission dict, or raises ValueError.
     """
 
-    # --- Step 1: Parse JSON ---
+    # Step 1: Parse JSON
     try:
         mission = json.loads(raw_json)
     except json.JSONDecodeError as e:
         raise ValueError(f'LLM returned invalid JSON: {e}')
 
-    # --- Step 2: Replace null values with safe defaults BEFORE schema validation ---
+    # Step 2: Replace null values with safe defaults BEFORE schema validation
     # The LLM (via Pydantic Optional fields) can output "field": null,
     # which jsonschema rejects because the schema says type: "string"/etc.
-    # setdefault() only fills MISSING keys, not null ones — so we need explicit checks.
+    # setdefault() only fills MISSING keys, not null ones - so we need explicit checks.
     _apply_defaults(mission)
 
-    # --- Step 3: Load schema ---
+    # Step 3: Load schema
     schema_path = os.path.join(
         get_package_share_directory('inspector_llm'),
         'schemas',
@@ -216,14 +216,14 @@ def validate_json_schema(raw_json: str) -> dict:
     with open(schema_path, 'r') as f:
         schema = json.load(f)
 
-    # --- Step 4: Validate structure against schema ---
+    # Step 4: Validate structure against schema
     try:
         jsonschema.validate(instance=mission, schema=schema)
     except jsonschema.ValidationError as e:
         field_path = ' -> '.join(str(p) for p in e.absolute_path) or 'root'
         raise ValueError(f'Schema validation failed at [{field_path}]: {e.message}')
 
-    # --- Step 5: Post-validation processing ---
+    # Step 5: Post-validation processing
     # Ensure explore/vision modes have an empty waypoints list if none provided
     if mission.get('mode') in ('explore', 'vision'):
         mission.setdefault('waypoints', [])
@@ -249,16 +249,16 @@ if __name__ == '__main__':
 
     print(f'Testing: {json_file}')
 
-    # Step 1: Schema validation (no ROS needed)
+    # Step 1: Schema validation
     try:
         mission = validate_json_schema(raw)
-        print(f'✅ Schema valid — {len(mission["waypoints"])} waypoints, '
+        print(f'Schema valid - {len(mission["waypoints"])} waypoints, '
               f'{mission["loop_count"]} loop(s), return_to_start={mission["return_to_start"]}')
     except ValueError as e:
-        print(f'❌ Schema FAILED: {e}')
+        print(f'Schema FAILED: {e}')
         sys.exit(1)
 
-    # Step 2: Map bounds check (no ROS needed)
+    # Step 2: Map bounds check
     MAP_YAML = os.path.join(
     get_package_share_directory('inspector_bot'),
     'maps',
@@ -268,11 +268,11 @@ if __name__ == '__main__':
         meta = load_map_metadata(MAP_YAML)
         for i, wp in enumerate(mission['waypoints']):
             if not is_within_map_bounds(wp['x'], wp['y'], meta):
-                print(f'❌ Waypoint {i+1} ({wp["x"]}, {wp["y"]}) is out of bounds')
+                print(f'Waypoint {i+1} ({wp["x"]}, {wp["y"]}) is out of bounds')
                 sys.exit(1)
-        print('✅ All waypoints within map bounds')
+        print('All waypoints within map bounds')
     except Exception as e:
-        print(f'❌ Bounds check error: {e}')
+        print(f'Bounds check error: {e}')
         sys.exit(1)
 
     print('Skipping costmap check (requires live Nav2). Run via ros2 run for full validation.')

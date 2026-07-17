@@ -29,7 +29,7 @@ diff_drive_controller:
     left_wheel_names: ["left_wheel_joint"]
     right_wheel_names: ["right_wheel_joint"]
 
-    # Kinematics Math Parameters (Must match your Xacro dimensions!)
+    # Kinematics Math Parameters 
     wheel_separation: 0.36  # chassis_width (0.3) + (wheel_length (0.04) * 2) + (wheel_ygap (0.02) * 2)
     wheel_radius: 0.1
 

@@ -6,7 +6,7 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node, LifecycleNode
 
 def generate_launch_description():
-    # --- 1. Define Package Paths ---
+    # 1. Define Package Paths
     inspector_pkg = get_package_share_directory('inspector_bot')
     nav2_pkg = get_package_share_directory('nav2_bringup')
     
@@ -15,7 +15,7 @@ def generate_launch_description():
     rviz_config_file = os.path.join(inspector_pkg, 'rviz', 'production.rviz')
     nav2_params_file = os.path.join(inspector_pkg, 'config', 'nav2_params.yaml')
 
-    # --- 2. Define the Launch Actions ---
+    # 2. Define the Launch Actions
     
     # Action A: Boot Gazebo & Spawn Robot (Terminal 1)
     gazebo_launch = IncludeLaunchDescription(

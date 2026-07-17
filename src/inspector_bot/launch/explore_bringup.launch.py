@@ -7,7 +7,7 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    # --- 1. Package paths ---
+    # 1. Package paths
     inspector_pkg = get_package_share_directory('inspector_bot')
     nav2_pkg = get_package_share_directory('nav2_bringup')
 
@@ -16,14 +16,14 @@ def generate_launch_description():
     slam_params_file = os.path.join(inspector_pkg, 'config', 'slam_params.yaml')
     rviz_config_file = os.path.join(inspector_pkg, 'rviz', 'production.rviz')
 
-    # --- 2. Gazebo + Robot spawn (reuse existing sim launch) ---
+    # 2. Gazebo + Robot spawn (reuse existing sim launch)
     gazebo_launch = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             os.path.join(inspector_pkg, 'launch', 'sim_robot.launch.py')
         )
     )
 
-    # --- 3. Nav2 bringup in SLAM mode ---
+    # 3. Nav2 bringup in SLAM mode
     # When slam:=True, bringup_launch.py launches slam_toolbox
     # instead of map_server + amcl. No static map needed.
     nav2_launch = IncludeLaunchDescription(
@@ -37,7 +37,7 @@ def generate_launch_description():
         }.items()
     )
 
-    # --- 4. Twist stamper bridge ---
+    # 4. Twist stamper bridge
     twist_stamper_node = Node(
         package='twist_stamper',
         executable='twist_stamper',
@@ -48,7 +48,7 @@ def generate_launch_description():
         ]
     )
 
-    # --- 5. RViz ---
+    # 5. RViz
     rviz_node = Node(
         package='rviz2',
         executable='rviz2',
@@ -57,7 +57,7 @@ def generate_launch_description():
         parameters=[{'use_sim_time': True}]
     )
 
-    # --- 6. Orchestration ---
+    # 6. Orchestration
     # Give Gazebo 15s to boot before starting Nav2 + SLAM
     delayed_nav_and_slam = TimerAction(
         period=15.0,

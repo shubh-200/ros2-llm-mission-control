@@ -12,18 +12,18 @@ from nav_msgs.msg import OccupancyGrid
 import rclpy
 
 
-# --- OccupancyGrid cell values ---
+# OccupancyGrid cell values
 CELL_UNKNOWN = -1
 CELL_FREE = 0
 # Anything > 0 is occupied (higher = more certain)
 CELL_OCCUPIED_THRESH = 50
 
-# --- Frontier filtering ---
-# These are BASE values — actual thresholds adapt based on map size.
+# Frontier filtering
+# These are BASE values - actual thresholds adapt based on map size.
 # Early SLAM maps are small and fragmented, so we relax filters to bootstrap.
-MIN_FRONTIER_SIZE_BASE = 5     # Min cells — reduced further for small maps
-MIN_DISTANCE_BASE = 1.5        # Min distance — reduced for small maps
-MAX_DISTANCE_FROM_ROBOT = 25.0 # metres — skip frontiers too far away
+MIN_FRONTIER_SIZE_BASE = 5     # Min cells : reduced further for small maps
+MIN_DISTANCE_BASE = 1.5        # Min distance : reduced for small maps
+MAX_DISTANCE_FROM_ROBOT = 25.0 # metres : skip frontiers too far away
 
 
 class FrontierExplorer:
@@ -77,10 +77,10 @@ class FrontierExplorer:
         origin_x = info.origin.position.x
         origin_y = info.origin.position.y
 
-        # --- 1. Reshape to 2D grid ---
+        # 1. Reshape to 2D grid
         grid = np.array(msg.data, dtype=np.int8).reshape((height, width))
 
-        # --- DEBUG: Log map composition ---
+        # DEBUG: Log map composition
         total_cells = width * height
         num_unknown = int(np.sum(grid == CELL_UNKNOWN))
         num_free = int(np.sum((grid >= 0) & (grid <= 10)))
@@ -97,11 +97,11 @@ class FrontierExplorer:
             )
             return []
 
-        # --- Adaptive thresholds based on map maturity ---
-        # Early SLAM: tiny free area, fragmented frontiers → relax filters
-        # Mature SLAM: large free area, well-defined frontiers → tighten filters
+        # Adaptive thresholds based on map maturity 
+        # Early SLAM: tiny free area, fragmented frontiers -> relax filters
+        # Mature SLAM: large free area, well-defined frontiers -> tighten filters
         if num_free < 2000:
-            # Bootstrap phase — accept anything
+            # Bootstrap phase - accept anything
             min_frontier_size = 1
             min_distance = 0.3
             self._node.get_logger().info(
@@ -115,15 +115,15 @@ class FrontierExplorer:
             min_frontier_size = MIN_FRONTIER_SIZE_BASE
             min_distance = MIN_DISTANCE_BASE
 
-        # --- 2. Create masks ---
+        # 2. Create masks
         # Free: cells with occupancy probability 0-10 (navigable)
         free_mask = (grid >= CELL_FREE) & (grid <= 10)
         # Unknown: cells with value -1
         unknown_mask = (grid == CELL_UNKNOWN)
 
-        # --- 3. Find frontier cells ---
+        # 3. Find frontier cells
         # A frontier cell is a FREE cell that has at least one UNKNOWN neighbor.
-        # Use 8-connectivity to catch diagonal frontiers too.
+        # Using 8-connectivity to catch diagonal frontiers too.
         struct_8conn = ndimage.generate_binary_structure(2, 2)  # 8-connected
         unknown_dilated = ndimage.binary_dilation(unknown_mask, structure=struct_8conn)
         frontier_mask = free_mask & unknown_dilated
@@ -135,11 +135,11 @@ class FrontierExplorer:
             self._node.get_logger().info('No frontier cells found.')
             return []
 
-        # --- 4. Cluster frontiers ---
+        # 4. Cluster frontiers
         labeled, num_features = ndimage.label(frontier_mask, structure=struct_8conn)
         self._node.get_logger().info(f'Frontier clusters: {num_features}')
 
-        # --- 5. Compute centroids and filter ---
+        # 5. Compute centroids and filter
         waypoints = []
         filtered_reasons = {'too_small': 0, 'too_close': 0, 'too_far': 0, 'occupied': 0}
 
@@ -182,13 +182,13 @@ class FrontierExplorer:
 
             waypoints.append((world_x, world_y, dist, cluster_size))
 
-        # --- DEBUG: Log filtering breakdown ---
+        # DEBUG: Log filtering breakdown
         self._node.get_logger().info(
             f'Clusters: {num_features} total, {len(waypoints)} passed filters. '
             f'Filtered out: {filtered_reasons}'
         )
 
-        # --- 6. Sort by exploration value ---
+        # 6. Sort by exploration value
         # Primary: largest frontier (most unexplored area). Tiebreaker: closest.
         waypoints.sort(key=lambda w: (-w[3], w[2]))
 

@@ -472,16 +472,16 @@ loopback_simulator:
 
 slam_toolbox:
   ros__parameters:
-    # --- Solver ---
+    # Solver
     solver_plugin: solver_plugins::CeresSolver
     ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
     ceres_preconditioner: SCHUR_JACOBI
 
-    # --- Mode ---
+    # Mode
     # online_async: builds map while navigating, non-blocking
     mode: mapping
 
-    # --- Frame config (must match robot URDF) ---
+    # Frame config
     odom_frame: odom
     map_frame: map
     base_frame: base_footprint
@@ -489,20 +489,19 @@ slam_toolbox:
 
     use_sim_time: true
 
-    # --- Map update ---
+    # Map update
     map_update_interval: 3.0
     resolution: 0.05
     max_laser_range: 20.0
 
-    # --- Motion thresholds for new scan integration ---
+    # Motion thresholds for new scan integration
     minimum_travel_distance: 0.3
     minimum_travel_heading: 0.3
 
-    # --- Map size ---
-    # Large enough for the tugbot warehouse world
+    # Map size
     map_size_meters: 80.0
 
-    # --- Loop closure ---
+    # Loop closure
     do_loop_closing: true
     loop_search_maximum_distance: 5.0
     loop_match_minimum_chain_size: 3
@@ -510,17 +509,17 @@ slam_toolbox:
     loop_match_minimum_response_coarse: 0.35
     loop_match_minimum_response_fine: 0.45
 
-    # --- Correlation / scan matching ---
+    # Correlation / scan matching
     correlation_search_space_dimension: 0.5
     correlation_search_space_resolution: 0.01
     correlation_search_space_smear_deviation: 0.1
 
-    # --- Fine-grained scan matching ---
+    # Fine-grained scan matching
     loop_search_space_dimension: 8.0
     loop_search_space_resolution: 0.05
     loop_search_space_smear_deviation: 0.03
 
-    # --- Distance and angle variance penalties ---
+    # Distance and angle variance penalties
     distance_variance_penalty: 0.5
     angle_variance_penalty: 1.0
 
@@ -528,11 +527,11 @@ slam_toolbox:
     coarse_search_angle_offset: 0.349
     coarse_angle_resolution: 0.0349
 
-    # --- Minimum score to accept a scan match ---
+    # Minimum score to accept a scan match
     minimum_angle_penalty: 0.9
     minimum_distance_penalty: 0.5
 
     use_response_expansion: true
 
-    # --- Serialization (stack size for large maps) ---
+    # Serialization (stack size for large maps)
     stack_size_to_use: 40000000

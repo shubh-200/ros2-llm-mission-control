@@ -22,7 +22,7 @@ MAP_YAML = os.path.join(
 )
 
 # ---------------------------------------------------------------------------
-# System prompts — one for each mode
+# System prompts : one for each mode
 # ---------------------------------------------------------------------------
 
 SYSTEM_PROMPT_MAPPED = """You are a mission planner for a ground robot in a warehouse.
@@ -260,7 +260,7 @@ def execute_exploration(nav_client, node, mission, frontier_explorer):
         ]
 
         if not frontiers:
-            print('[EXPLORER] No more reachable frontiers — exploration complete.')
+            print('[EXPLORER] No more reachable frontiers - exploration complete.')
             break
 
         for fx, fy in frontiers:
@@ -406,7 +406,7 @@ def main():
 
     mode = args.mode
 
-    # --- 1. Initialize ROS ---
+    # 1. Initialize ROS
     rclpy.init()
     node = rclpy.create_node('llm_bridge')
 
@@ -414,12 +414,12 @@ def main():
     nav_client = ActionClient(node, NavigateToPose, '/navigate_to_pose')
 
     # In mapped mode, seed AMCL with initial pose.
-    # In explore mode, SLAM Toolbox handles localization — no initialpose needed.
+    # In explore mode, SLAM Toolbox handles localization - no initialpose needed.
     # In vision mode, we use the static map (AMCL) for return-to-start.
     if mode in ('mapped', 'vision'):
         publish_initial_pose(node)
 
-    # --- 2. Get prompt or load file ---
+    # 2. Get prompt or load file 
     if args.file:
         print(f'\n[REPLAY] Loading mission from {args.file}')
         with open(args.file, 'r') as f:
@@ -438,7 +438,7 @@ def main():
         raw_json = call_gemini(user_prompt, mode)
         print(f'[LLM] Response:\n{raw_json}\n')
 
-    # --- 3. Validate JSON schema ---
+    # 3. Validate JSON schema 
     print('[VALIDATOR] Checking schema...')
     mission = validate_json_schema(raw_json)
 
@@ -450,11 +450,11 @@ def main():
 
     save_mission(mission)
 
-    # --- 4. Wait for Nav2 ---
+    # 4. Wait for Nav2
     node.get_logger().info('Waiting for Nav2...')
     nav_client.wait_for_server()
 
-    # --- 5. Mode-specific execution ---
+    # 5. Mode-specific execution
     if mode == 'explore':
         # Explore mode: use frontier explorer
         frontier_explorer = FrontierExplorer(node)
@@ -472,7 +472,7 @@ def main():
         map_meta = load_map_metadata(MAP_YAML)
         waypoints = mission.get('waypoints', [])
 
-        print(f'[VALIDATOR] Schema OK — {len(waypoints)} waypoints, '
+        print(f'[VALIDATOR] Schema OK - {len(waypoints)} waypoints, '
               f'{mission.get("loop_count", 1)} loop(s)')
         print('[VALIDATOR] Checking waypoints against costmap...')
         validate_waypoints(waypoints, map_meta, costmap_validator)

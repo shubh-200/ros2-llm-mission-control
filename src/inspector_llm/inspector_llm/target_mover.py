@@ -1,5 +1,5 @@
 """
-Target Mover — ROS 2 Node
+Target Mover - ROS 2 Node
 
 Publishes continuous velocity commands on /red_target/cmd_vel to make the
 red box target drive in circles or loop around, simulating a moving target.

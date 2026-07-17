@@ -1,5 +1,5 @@
 """
-Visual Follower — ROS 2 Node
+Visual Follower - ROS 2 Node
 
 Proportional controller that tracks a detected target by subscribing to
 /detected_target (PoseStamped) and publishing velocity commands on /cmd_vel.
@@ -28,13 +28,13 @@ import tf2_ros
 from tf2_ros import Buffer, TransformListener
 
 
-# --- Controller gains ---
+# Controller gains
 KP_ANGULAR = 1.5        # Proportional gain for angular velocity (rad/s per rad error)
 KP_LINEAR = 0.5         # Proportional gain for linear velocity (m/s per m error)
-DESIRED_DISTANCE = 1.5  # metres — how far to stay from the target
-MAX_LINEAR_VEL = 0.4    # m/s — cap forward speed
-MAX_ANGULAR_VEL = 1.0   # rad/s — cap turning speed
-LOST_TIMEOUT = 5.0      # seconds — stop following if target lost for this long
+DESIRED_DISTANCE = 1.5  # metres - how far to stay from the target
+MAX_LINEAR_VEL = 0.4    # m/s - cap forward speed
+MAX_ANGULAR_VEL = 1.0   # rad/s - cap turning speed
+LOST_TIMEOUT = 5.0      # seconds - stop following if target lost for this long
 
 
 class VisualFollower(Node):
@@ -42,11 +42,11 @@ class VisualFollower(Node):
     Follows a detected target using proportional control on /cmd_vel.
 
     Subscribes:
-      /detected_target   (PoseStamped)  — 3D pose from vision_detector
-      /detection_status  (String)       — "tracking" | "lost" | "idle"
+      /detected_target   (PoseStamped)  - 3D pose from vision_detector
+      /detection_status  (String)       - "tracking" | "lost" | "idle"
 
     Publishes:
-      /cmd_vel           (Twist)        — velocity commands for pursuit
+      /cmd_vel           (Twist)        - velocity commands for pursuit
 
     Parameters:
       follow_timeout     (float): Max seconds to follow. Default: 60.0
@@ -56,24 +56,24 @@ class VisualFollower(Node):
     def __init__(self):
         super().__init__('visual_follower')
 
-        # --- Parameters ---
+        # Parameters
         self.declare_parameter('follow_timeout', 60.0)
         self.declare_parameter('return_to_start', True)
         self._timeout = self.get_parameter('follow_timeout').value
         self._return_flag = self.get_parameter('return_to_start').value
 
-        # --- State ---
+        # State
         self._following = False
         self._follow_start_time = None
         self._last_target_time = None
         self._start_pose = None  # saved when following begins
         self._done = False
 
-        # --- TF ---
+        # TF
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
 
-        # --- Subscribers ---
+        # Subscribers
         self.create_subscription(
             PoseStamped, '/detected_target', self._target_cb, 10
         )
@@ -81,13 +81,13 @@ class VisualFollower(Node):
             String, '/detection_status', self._status_cb, 10
         )
 
-        # --- Publishers ---
+        # Publishers
         self._cmd_pub = self.create_publisher(Twist, '/cmd_vel', 10)
 
-        # --- Nav2 Action Client (for return-to-start) ---
+        # Nav2 Action Client
         self._nav_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
 
-        # --- Control loop at 10 Hz ---
+        # Control loop at 10 Hz
         self._timer = self.create_timer(0.1, self._control_loop)
 
         self.get_logger().info(
@@ -135,7 +135,7 @@ class VisualFollower(Node):
 
         now = time.time()
 
-        # --- Check timeout ---
+        # Check timeout
         elapsed = now - self._follow_start_time
         if elapsed >= self._timeout:
             self.get_logger().info(
@@ -144,7 +144,7 @@ class VisualFollower(Node):
             self._stop_following('timeout')
             return
 
-        # --- Check target lost ---
+        # Check target lost
         if self._last_target_time is not None:
             since_last = now - self._last_target_time
             if since_last > LOST_TIMEOUT:
@@ -155,7 +155,7 @@ class VisualFollower(Node):
                 self._stop_following('target_lost')
                 return
 
-        # --- Compute follow command ---
+        # Compute follow command
         try:
             # Look up target position relative to robot
             t = self._tf_buffer.lookup_transform(
@@ -163,7 +163,7 @@ class VisualFollower(Node):
                 timeout=rclpy.duration.Duration(seconds=0.1)
             )
         except Exception:
-            # TF not available — send zero velocity
+            # TF not available - send zero velocity
             self._publish_stop()
             return
 
@@ -176,7 +176,7 @@ class VisualFollower(Node):
         # Distance to target
         distance = math.sqrt(target_x ** 2 + target_y ** 2)
 
-        # --- Proportional control ---
+        # Proportional control
         cmd = Twist()
 
         # Angular: turn toward target
@@ -195,7 +195,7 @@ class VisualFollower(Node):
         # Log periodically (every ~2 seconds)
         if int(elapsed) % 2 == 0 and int(elapsed * 10) % 20 == 0:
             self.get_logger().info(
-                f'Following: dist={distance:.2f}m, bearing={math.degrees(bearing):.1f}°, '
+                f'Following: dist={distance:.2f}m, bearing={math.degrees(bearing):.1f} degrees, '
                 f'cmd=({cmd.linear.x:.2f}, {cmd.angular.z:.2f}), '
                 f'elapsed={elapsed:.0f}/{self._timeout:.0f}s'
             )

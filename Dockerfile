@@ -52,7 +52,7 @@ RUN rosdep update && rosdep install -y \
     --rosdistro jazzy \
     --skip-keys "inspector_bot inspector_vision inspector_interfaces inspector_llm"
 
-# 5. Build the Workspace (Ensuring the custom BT plugin and Lifecycle nodes compile)
+# 5. Build the Workspace
 RUN /bin/bash -c "source /opt/ros/jazzy/setup.bash && \
     colcon build --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
 

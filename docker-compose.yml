@@ -18,13 +18,13 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
       # Optional: Mount your source code directly for live-editing Python launch files without rebuilding the container
       - ./src:/ros2_ws/src:rw
-      # Detection snapshots — images saved here are visible on the host immediately
+      # Detection snapshots - images saved here are visible on the host immediately
       - ./detections:/ros2_ws/detections:rw
     # Launch the entire orchestrator immediately upon boot
     # To run explore mode, override this with: ros2 launch inspector_bot explore_bringup.launch.py
     command: ros2 launch inspector_bot master_bringup.launch.py
 
-  # Service 2: LLM bridge — interactive terminal for mission prompts
+  # Service 2: LLM bridge - interactive terminal for mission prompts
   llm_bridge:
     build: .
     container_name: inspector_llm_container
